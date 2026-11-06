@@ -3,5 +3,6 @@
   "owner": "",
   "maxHours": "",
   "clientPrefix": "client-",
-  "galleryRepo": ""
+  "galleryRepo": "",
+  "auto": ""
 }

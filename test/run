@@ -75,7 +75,8 @@ has "references the Feature by its major (:$MAJOR)" "$(cat "$tpl")" "\"ghcr.io/s
 is "…and by nothing else (no digest, no other tag)" "$(grep -c 'ghcr.io/stoilyhq/codespace/stoily' "$tpl")" 1
 is "carries no lifecycle command of its own (the Feature does)" "$(grep -cE '"(postCreate|postStart|onCreate)Command"' "$tpl")" 0
 is "the template keeps its comments (it is the source, not a render)" "$(grep -c '^ *//' "$tpl" | awk '{print ($1 > 3)}')" 1
-is "stoily.json = the placeholder org + the defaults" "$(node -e 'console.log(JSON.stringify(require(process.argv[1])))' "$REPO/.devcontainer/stoily.json")" '{"org":"YOUR-ORG","owner":"","maxHours":"","clientPrefix":"client-","galleryRepo":""}'
+is "stoily.json = the placeholder org + the defaults" "$(node -e 'console.log(JSON.stringify(require(process.argv[1])))' "$REPO/.devcontainer/stoily.json")" '{"org":"YOUR-ORG","owner":"","maxHours":"","clientPrefix":"client-","galleryRepo":"","auto":""}'
+is "…and the template's Feature never carries auto (a 3.1 kit does not declare it: the build may fail or ignore it)" "$(grep -c '"auto"' "$tpl")" 0
 
 echo "the renderer (.github/stoily-render.js): an org's devcontainer.json = the template + stoily.json"
 RJ="$REPO/.github/stoily-render.js"; RD="$T/render"; mkdir -p "$RD"
@@ -120,7 +121,7 @@ is "…the string keeps its //" "$(rj "$RD/out3.json" 'console.log(j.name)')" "a
 is "…any other grant is dropped: only <org>/*" "$(rj "$RD/out3.json" 'console.log(Object.keys(j.customizations.codespaces.repositories).join(" "))')" "$ORG/*"
 is "…the template's own option + other Feature + vscode kept, org set" "$(rj "$RD/out3.json" 'const f=j.features["ghcr.io/stoilyhq/codespace/stoily:2"];console.log(f.codexVersion+" "+f.org+" "+Object.keys(j.features).length+" "+j.customizations.vscode.x)')" "1.2.3 $ORG 2 1"
 cp "$RD/out.json" "$RD/keep.json"
-for bad in '"constructor":"x"' '"__proto__":"x"' '"toString":"x"' '"org":"a.b"' '"org":"YOUR-ORG"' '"org":"your-org"' '"org":""' '"maxHours":"six"' '"owner":"a b"' '"clientPrefix":""' '"clientPrefix":"Client-"' '"galleryRepo":"../x"' '"galleryRepo":"a/b/c"' '"extra":"x"' '"org":7'; do
+for bad in '"auto":"off"' '"auto":"On"' '"auto":"true"' '"auto":"1"' '"auto":" on"' '"auto":true' '"constructor":"x"' '"__proto__":"x"' '"toString":"x"' '"org":"a.b"' '"org":"YOUR-ORG"' '"org":"your-org"' '"org":""' '"maxHours":"six"' '"owner":"a b"' '"clientPrefix":""' '"clientPrefix":"Client-"' '"galleryRepo":"../x"' '"galleryRepo":"a/b/c"' '"extra":"x"' '"org":7'; do
   case "$bad" in '"org"'*) body="{$bad}" ;; *) body="{\"org\":\"$ORG\",$bad}" ;; esac
   printf '%s\n' "$body" > "$RD/bad.json"
   out="$(render "$tpl" "$RD/bad.json" "$RD/out.json")"; rc=$?
@@ -131,6 +132,17 @@ done
 has "…YOUR-ORG says why" "$(printf '{"org":"YOUR-ORG"}\n' > "$RD/bad.json"; render "$tpl" "$RD/bad.json" "$RD/out.json")" 'still the placeholder YOUR-ORG'
 printf '{"org":"%s"}\n' "$ORG" > "$RD/min.json"
 is "stoily.json with only org → the defaults for the rest" "$(render "$tpl" "$RD/min.json" "$RD/min-out.json" >/dev/null; rj "$RD/min-out.json" "console.log(JSON.stringify(j.features['ghcr.io/stoilyhq/codespace/stoily:$MAJOR']))")" "{\"org\":\"$ORG\",\"owner\":\"\",\"maxHours\":\"\",\"clientPrefix\":\"client-\",\"galleryRepo\":\"\"}"
+# auto: "" or absent → the render is byte-identical to one without the key (no "auto" in the Feature at
+# all: a kit before 3.2 does not declare it and would fail the build); "on" → exactly one line more.
+printf '{"org":"%s","owner":"boss","maxHours":"6","clientPrefix":"client-","galleryRepo":"designs","auto":""}\n' "$ORG" > "$RD/auto-off.json"
+printf '{"org":"%s","owner":"boss","maxHours":"6","clientPrefix":"client-","galleryRepo":"designs","auto":"on"}\n' "$ORG" > "$RD/auto-on.json"
+render "$tpl" "$RD/stoily.json" "$RD/auto-none-out.json" >/dev/null; render "$tpl" "$RD/auto-off.json" "$RD/auto-off-out.json" >/dev/null; render "$tpl" "$RD/auto-on.json" "$RD/auto-on-out.json" >/dev/null
+is "auto \"\" → byte-identical to the render without auto" "$(cmp -s "$RD/auto-none-out.json" "$RD/auto-off-out.json" && echo same)" same
+is "…no auto key in the Feature (absent or \"\")" "$(grep -c '"auto"' "$RD/auto-none-out.json" "$RD/auto-off-out.json" "$RD/min-out.json" | cut -d: -f2 | tr '\n' ' ')" "0 0 0 "
+is "auto \"on\" → the Feature's options gain \"auto\": \"on\" (last)" "$(rj "$RD/auto-on-out.json" "console.log(JSON.stringify(j.features['ghcr.io/stoilyhq/codespace/stoily:$MAJOR']))")" "{\"org\":\"$ORG\",\"owner\":\"boss\",\"maxHours\":\"6\",\"clientPrefix\":\"client-\",\"galleryRepo\":\"designs\",\"auto\":\"on\"}"
+is "…and nothing else changes (the diff: one line added, the comma before it)" "$(diff "$RD/auto-none-out.json" "$RD/auto-on-out.json" | grep -E '^[<>]' | tr -d ' ' | tr '\n' ' ')" '<"galleryRepo":"designs" >"galleryRepo":"designs", >"auto":"on" '
+printf '{"features":{"ghcr.io/stoilyhq/codespace/stoily:%s":{"auto":"on","codexVersion":"1"}}}\n' "$MAJOR" > "$RD/tpl-auto.json"
+is "a template that carries auto → stoily.json decides (\"\" drops it, the template's other options kept)" "$(render "$RD/tpl-auto.json" "$RD/auto-off.json" "$RD/tpl-auto-out.json" >/dev/null; rj "$RD/tpl-auto-out.json" "const f=j.features['ghcr.io/stoilyhq/codespace/stoily:$MAJOR'];console.log(('auto' in f)+' '+f.codexVersion)")" "false 1"
 printf '{"name":"x","features":{"ghcr.io/devcontainers/features/node:1":{}}}\n' > "$RD/nofeat.json"
 for k in 'ghcr.io/stoilyhq/codespace/stoily@sha256:0123' 'ghcr.io/stoilyhq/codespace/stoily'; do
   printf '{"features":{"ghcr.io/stoilyhq/codespace/stoily:2":{},"%s":{}}}\n' "$k" > "$RD/two.json"; printf '{"features":{"%s":{}}}\n' "$k" > "$RD/one.json"

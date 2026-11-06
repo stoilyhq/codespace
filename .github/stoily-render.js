@@ -12,7 +12,9 @@
 //   - customizations.codespaces.repositories = { "<org>/*": { permissions: { contents: write } } }
 //     (the ONE Codespaces grant: any other grant in the template is dropped);
 //   - the options of the stoily Feature (ghcr.io/stoilyhq/codespace/stoily:<major>): org, owner,
-//     maxHours, clientPrefix, galleryRepo (any other option of the template is kept as it is).
+//     maxHours, clientPrefix, galleryRepo, and auto ONLY when stoily.json sets it to "on" (absent or
+//     "" adds nothing: the render is byte-identical to one without the key, and a kit older than 3.2,
+//     which does not declare auto, still builds) (any other option of the template is kept as it is).
 // Everything else comes from the template unchanged. A value that is not valid (the same rules as the
 // Feature's install-kit.sh), the placeholder YOUR-ORG, an unknown key or a template without exactly one
 // stoily Feature is refused: exit 1, nothing written. Same inputs → byte-identical output.
@@ -31,8 +33,9 @@ const RULES = {
   maxHours: [/^$|^[0-9]{1,2}$/, 'empty or whole hours (0-99)'],
   clientPrefix: [/^[a-z0-9][a-z0-9-]{0,30}$/, 'lowercase letters, digits and - (and not empty)'],
   galleryRepo: [/^$|^([A-Za-z0-9]([A-Za-z0-9-]{0,37}[A-Za-z0-9])?\/)?[A-Za-z0-9._-]{1,100}$/, 'empty, a repo name or owner/name'],
+  auto: [/^$|^on$/, 'empty or "on"'],
 };
-const DEFAULTS = { owner: '', maxHours: '', clientPrefix: 'client-', galleryRepo: '' };
+const DEFAULTS = { owner: '', maxHours: '', clientPrefix: 'client-', galleryRepo: '', auto: '' };
 
 function die(msg) { process.stderr.write(`stoily-render: ${msg}\n`); process.exit(1); }
 
@@ -112,7 +115,10 @@ function main(argv) {
   if (!FEATURE_RE.test(keys[0])) die(`the template's stoily Feature ${JSON.stringify(keys[0])} is not ghcr.io/stoilyhq/codespace/stoily:<tag>`);
   const fk = keys[0];
   const opts = isObj(tpl.features[fk]) ? Object.assign({}, tpl.features[fk]) : {};
-  for (const k of Object.keys(RULES)) opts[k] = v[k];
+  for (const k of Object.keys(RULES)) if (k !== 'auto') opts[k] = v[k];
+  // auto: written only when "on"; off = no key at all (never "auto": "", which a 3.1 kit would refuse)
+  delete opts.auto;
+  if (v.auto === 'on') opts.auto = 'on';
   tpl.features[fk] = opts;
 
   // ── the ONE Codespaces grant: <org>/* (built fresh: no other grant survives) ──

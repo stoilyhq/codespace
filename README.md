@@ -86,6 +86,23 @@ command line names (and this store's own folder on Stoily's media CDN, where its
 - **Codex never starts in the workbench itself** (it holds every client folder): with no client yet
   (`go` or `work` with no client) it starts in an empty `~/stoily-lobby`.
   Do not start `codex` by hand in the workbench folder.
+- **Auto mode (`"auto": "on"`) removes the human check.** Everything above about reading the command
+  line before you approve stops applying to the kit's programs: Codex asks `go` for them instead of
+  you, and `go` runs them (`save`, `photos`, `upload-images`, `site-check`, `fetch-site` in a client
+  folder; only `new-client` in the lobby) with their network and the Codespace's GitHub access, and
+  the LIVE Stoily writes no longer ask (except `create_store`). That ask was one of the things
+  narrowing the token-exfil channel described above; without it, whatever Codex writes into a
+  program's input or arguments goes out unread. `fetch-site` makes it wider: it reaches any URL, so a
+  page Codex fetches can carry text that steers it, and the next fetch can carry what Codex read.
+  What still holds: no command ever leaves the sandbox on its own (the kit installs no Codex rule
+  that lets one out, and removes any it finds); Codex can only write a request file into its own
+  folder (`.run/<id>.json`: a program name and its arguments), and `go` — outside the sandbox — runs
+  only one of that folder's programs, with exactly those arguments, without a shell (`&&`, `;` or
+  `$(…)` in an argument are just characters), one at a time, and nothing while the folder has its own
+  `.codex/`. The sandbox (writes only in its folder, no shell network), the store binding and the
+  programs' own checks (the committed HOST, `save`'s binding rules) still hold. Use auto only on a
+  Codespace whose Stoily sign-in reaches stores you would let Codex change unattended, and never
+  point it at untrusted sites.
 
 The walls that hold are server-side and per person: **one Codespace per Stoily identity** (and per
 agency), each person's own Stoily role on each store, and GitHub's repo permissions.
@@ -169,7 +186,8 @@ options in `devcontainer.json` (never edit that file: the next render replaces i
   "owner": "your-login",
   "maxHours": "6",
   "clientPrefix": "client-",
-  "galleryRepo": ""
+  "galleryRepo": "",
+  "auto": ""
 }
 ```
 
@@ -180,10 +198,44 @@ options in `devcontainer.json` (never edit that file: the next render replaces i
 | `owner` | `""` | GitHub login whose Codespaces keep a plain shell (`work?`). Every other account's terminal runs `go --loop`: straight into Codex, saved and restarted on exit. Empty = everyone gets `work?`. |
 | `maxHours` | `""` | Soft daily cap (whole hours of Codex, UTC day) for `go --loop` terminals. Empty = none. |
 | `galleryRepo` | `""` | The org's design gallery ([GALLERY.md](GALLERY.md)), cloned into `<workbench>/gallery` by `sync` when it exists and this Codespace can read it (otherwise skipped without a word). Empty = `<org>/gallery`; a repo name in the org, or `owner/name`. |
+| `auto` | `""` | `"on"` = **auto mode** (needs kit 3.2 or later and the current `.github/stoily-render.js`): you type one sentence and Codex does the rest — no approval prompts (except `create_store`, which still asks; and only in the Codex `go` starts: a staff `--loop` terminal, a bare `codex` or a `work` window keep asking), no clarifying questions (it picks a default and writes each choice under "Choices" in `stoily/progress.md`), `go` runs the kit's programs it asks for, and `go` keeps the Codespace awake while Codex works. Only `""` (off) and `"on"` are accepted. Read [Auto mode](#auto-mode) and the auto paragraph in "What the lock does NOT do" first. |
 | `codexVersion` | `latest` | The `@openai/codex` npm version installed into the image (the Feature's default; not in `stoily.json`). |
 
 An invalid value fails the updater's run (nothing is committed; the run's log names the value); an
 invalid option that reaches the Codespace fails its build with the option's name. Fix it and rebuild.
+
+### Auto mode
+
+With `"auto": "on"` in `stoily.json` (and the updater's commit in, then a new Codespace or a
+**Rebuild container**), the whole job is one sentence typed in the lobby — no terminal:
+
+```
+ lobby Codex: "set up acme for <store>, build demo-store"
+   │ list_stores → the store's id and host
+   │ asks go: new-client acme <storeId> <host> -b demo-store
+   ▼
+ go ends the lobby Codex and starts Codex in clients/acme
+   with the demo-store brief: it builds, and asks go to
+   run photos, upload-images, site-check and save
+```
+
+- Type it in the lobby (the first terminal when the Codespace has no client yet): "set up `<name>`
+  for `<store>`", optionally ", build `<brief>`" (a prompt in `prompts/`). Codex finds the store,
+  creates and binds `<org>/client-<name>`, and the build starts by itself in that client's folder.
+- If the repo cannot be created (a personal account, or a token without that right), Codex relays
+  the link the program prints: create the empty private repo there, then say the sentence again.
+- Codex never asks: where something is not said, it picks the default and records each choice under
+  "Choices" in `stoily/progress.md`. Read it afterwards.
+- What auto does NOT change: the sandbox (writes only in its folder, no shell network), no domains,
+  DNS or members, other stores stay out of reach, page changes stay drafts, and publishing a store
+  Codex did not create stays a click in Stoily admin.
+- **Idle timeout: create the Codespace with a 240-minute one.** GitHub cannot change the timeout of
+  an existing Codespace: set GitHub → Settings → Codespaces → **Default idle timeout** to 240 before
+  you create it (or `gh codespace create --idle-timeout 4h`). Auto keeps the Codespace awake only
+  while Codex is working (a session active in the last 30 minutes); after that it stops at its
+  timeout as usual.
+- Your org's copy must carry this version of `.github/stoily-render.js` (the updater does not
+  update it): an older one refuses `auto` as an unknown key. Copy it from this repo if needed.
 
 ### Updates and versions
 
@@ -420,7 +472,7 @@ credited from `stoily/assets/sources.json`).
   while the Stoily login is still waiting, run `curl '<the URL>'` in ANOTHER terminal of
   the same Codespace (in tmux: `Ctrl-b c`), right away — the code works once. Or open
   the Codespace in VS Code desktop, which forwards localhost automatically.
-- **The LIVE writes always ask you first** (`set_store_config`, `set_store_language`,
+- **The LIVE writes always ask you first** (auto off; with `"auto": "on"` only `create_store` asks, in the Codex `go` starts) (`set_store_config`, `set_store_language`,
   `create_category`, `upsert_product`, `set_product_image`, `set_logo`, `create_store`,
   `publish_all_drafts`), so under `codex exec` (nobody to answer) they
   never run; use interactive `codex` for them. `upsert_product` overwrites an existing SKU's price
@@ -434,8 +486,10 @@ credited from `stoily/assets/sources.json`).
 - **Snapshots are best-effort.** The AI writes what the tools return. A page over 200 KB comes back
   truncated; its snapshot is marked `"_incomplete": true` and is never used to restore.
 - **The Codespace stops at its idle timeout even with tmux running**, and a running Codex task stops
-  with it. Set your idle timeout (GitHub settings → Codespaces; up to 4 hours) longer than your
-  longest task; an org-wide idle policy needs a paid plan.
+  with it. Create the Codespace with a 240-minute idle timeout (GitHub settings → Codespaces →
+  Default idle timeout, up to 4 hours, BEFORE you create it: GitHub cannot change an existing
+  Codespace's timeout). With `"auto": "on"`, `go` keeps the Codespace awake only while Codex is
+  working; without it, nothing does. An org-wide idle policy needs a paid plan.
 - **Every client of the org is in every Codespace of the org** (each `<org>/client-*` repo it can
   see). To keep clients apart, use separate orgs; a member's own GitHub permissions decide which client
   repos their Codespace can see and push.
