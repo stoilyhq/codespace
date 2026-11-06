@@ -1,0 +1,145 @@
+name: stoily-update
+# Runs ONLY in an org's copy of stoilyhq/codespace (Use this template copies .github/): renders the
+# org's .devcontainer/devcontainer.json from the stoilyhq template AT the commit of the latest SUCCESSFUL
+# push-to-main run of stoilyhq's release workflow (tested, its Feature published) + the org's own
+# .devcontainer/stoily.json, with .github/stoily-render.js, and commits it when it changed. So a new
+# template (a new Feature major, a new setting) reaches the org by itself, and an edit of stoily.json
+# is live ~30 s later. It commits devcontainer.json ONLY (never this workflow or the renderer), and only
+# when the Feature version it names is published on GHCR. If GitHub disabled the workflow (a public
+# repo's schedule pauses after 60 days without activity), Actions → stoily-update → Enable workflow.
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+  push:
+    branches: ["**"]   # never a tag push (GitHub skips path filters for tags)
+    paths:
+      - .devcontainer/stoily.json
+permissions:
+  contents: write    # commits the rendered devcontainer.json
+concurrency:
+  group: stoily-update-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  render:
+    if: github.repository != 'stoilyhq/codespace'   # never in stoilyhq/codespace: there devcontainer.json IS the template
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { ref: "${{ github.ref }}" }   # the branch, not the commit this run was started on
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: 22 }
+      - name: go to the branch tip as it is NOW
+        env:
+          REF: ${{ github.ref_name }}
+        run: |
+          # A run queued behind another one (a push + a Run workflow, the schedule + a stoily.json push) must
+          # render from what that one pushed: then the file is current (no commit) or its push is a
+          # fast-forward — never a push rejected because this run started on an older commit.
+          git fetch -q --depth=1 origin "$REF"
+          git reset -q --hard FETCH_HEAD
+      - name: is .devcontainer/stoily.json still the placeholder?
+        id: org
+        run: |
+          # A new org's copy runs this before anyone set its org (the template copy, the schedule): say what
+          # to do and stay green. Any other bad value is the renderer's to refuse (a red run).
+          org="$(node .github/stoily-render.js --org .devcontainer/stoily.json)"   # comments allowed, "" when unreadable
+          if [ "${org^^}" = YOUR-ORG ]; then
+            echo "::notice::set \"org\" in .devcontainer/stoily.json (it is still YOUR-ORG) and commit — then this workflow renders devcontainer.json"
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+      - name: fetch the stoilyhq template at its last tested + published commit
+        id: src
+        if: steps.org.outputs.skip != '1'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # The head commit of the latest SUCCESSFUL release run triggered by a PUSH to main: a hand-run
+          # release on another branch publishes nothing and is never picked. This API is the updater's
+          # source: an EMPTY list (no successful release yet) is a notice and a green skip; a failed call,
+          # an answer that is not the runs list, or a head_sha that is not a commit is an error (red),
+          # never a silent skip. Nothing is committed in either case.
+          runs="https://api.github.com/repos/stoilyhq/codespace/actions/workflows/release.yml/runs?branch=main&event=push&status=success&per_page=1"
+          if ! body="$(curl -fsS --retry 3 -H "Authorization: Bearer $GITHUB_TOKEN" "$runs" 2>"$RUNNER_TEMP/runs.err")"; then
+            # The endpoint is public: a token this org's run may not use there (401/403/404) → once without it.
+            if ! grep -qE 'error: (401|403|404)' "$RUNNER_TEMP/runs.err" || ! body="$(curl -fsS --retry 3 "$runs")"; then
+              echo "::error::could not read stoilyhq/codespace's release runs (the API call failed: $(head -c 200 "$RUNNER_TEMP/runs.err")) — devcontainer.json unchanged"
+              exit 1
+            fi
+          fi
+          if ! sha="$(jq -r 'if (.workflow_runs | type) != "array" then error("no workflow_runs list") elif (.workflow_runs | length) == 0 then "" else (.workflow_runs[0].head_sha | tostring) end' <<<"$body" 2>&1)"; then
+            echo "::error::stoilyhq/codespace's release runs answer is not the runs list ($sha) — devcontainer.json unchanged"
+            exit 1
+          fi
+          if [ -z "$sha" ]; then
+            echo "::notice::stoilyhq/codespace has no successful release yet — devcontainer.json unchanged; the next run retries"
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::stoilyhq/codespace's latest release run has no commit sha (${sha}) — devcontainer.json unchanged"
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/template.json" "https://raw.githubusercontent.com/stoilyhq/codespace/$sha/.devcontainer/devcontainer.json"
+      - name: render .devcontainer/devcontainer.json from .devcontainer/stoily.json
+        if: steps.org.outputs.skip != '1' && steps.src.outputs.skip != '1'
+        env:
+          SHA: ${{ steps.src.outputs.sha }}
+        run: node .github/stoily-render.js --source "$SHA" "$RUNNER_TEMP/template.json" .devcontainer/stoily.json .devcontainer/devcontainer.json
+      - name: commit it when it changed and its Feature version is published
+        if: steps.org.outputs.skip != '1' && steps.src.outputs.skip != '1'
+        env:
+          REF: ${{ github.ref_name }}
+          SHA: ${{ steps.src.outputs.sha }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # staged, so a devcontainer.json the branch does not have yet (deleted upstream) counts as a change
+          git add .devcontainer/devcontainer.json
+          if git diff --cached --quiet -- .devcontainer/devcontainer.json; then echo "devcontainer.json is current"; exit 0; fi
+          feat='const j = JSON.parse(require("fs").readFileSync(0, "utf8")); const k = Object.keys(j.features || {}).find((k) => /^ghcr\.io\/stoilyhq\/codespace\/stoily:/.test(k)); console.log(k ? k.split(":").pop() : "")'
+          tag="$(tail -n +2 .devcontainer/devcontainer.json | node -e "$feat")"
+          # Never BACK to an older template (the newest green release run re-run and failed, or deleted):
+          # not to a lower Feature major than the committed file's, and not to a stoilyhq commit that is an
+          # ancestor of the one the committed file was rendered from (its GENERATED line names it).
+          was="$(git show HEAD:.devcontainer/devcontainer.json 2>/dev/null || true)"
+          old="$(head -1 <<<"$was" | sed -nE 's#^// GENERATED from stoilyhq/codespace@([0-9a-f]{40}) .*#\1#p')"
+          oldtag="$(tail -n +2 <<<"$was" | node -e "$feat" 2>/dev/null || true)"
+          if [[ "${oldtag%%.*}" =~ ^[0-9]+$ && "${tag%%.*}" =~ ^[0-9]+$ ]] && [ "${tag%%.*}" -lt "${oldtag%%.*}" ]; then
+            echo "::notice::would go back to an older template (stoily:$oldtag → stoily:$tag) — devcontainer.json unchanged"; exit 0
+          fi
+          if [ -n "$old" ] && [ "$old" != "$SHA" ]; then
+            cmp="https://api.github.com/repos/stoilyhq/codespace/compare/$SHA...$old"
+            if ! cj="$(curl -fsS --retry 3 -H "Authorization: Bearer $GITHUB_TOKEN" "$cmp" 2>"$RUNNER_TEMP/cmp.err")"; then
+              if ! grep -qE 'error: (401|403|404)' "$RUNNER_TEMP/cmp.err" || ! cj="$(curl -fsS --retry 3 "$cmp")"; then
+                echo "::error::could not compare stoilyhq/codespace@$SHA with @$old (the API call failed) — devcontainer.json unchanged — if stoilyhq rewrote history, delete the @<sha> from line 1 of .devcontainer/devcontainer.json, commit it, and Run workflow"; exit 1
+              fi
+            fi
+            st="$(jq -r '.status // empty' <<<"$cj" 2>/dev/null || true)"
+            case "$st" in
+              ahead) echo "::notice::would go back to an older template (stoilyhq/codespace@$SHA is older than @$old) — devcontainer.json unchanged"; exit 0 ;;
+              behind|diverged|identical) ;;
+              *) echo "::error::the compare of stoilyhq/codespace@$SHA with @$old answered ${st:-nothing} — devcontainer.json unchanged — if stoilyhq rewrote history, delete the @<sha> from line 1 of .devcontainer/devcontainer.json, commit it, and Run workflow"; exit 1 ;;
+            esac
+          fi
+          # Never point the org's Codespaces at a Feature version GHCR does not serve (anonymous pull token).
+          # 404 = not published (yet): a notice and a green skip. Anything else that is not a 200 (the token
+          # endpoint down, 401, 5xx, no network) is an error: a red run, nothing committed.
+          [[ "$tag" =~ ^[0-9A-Za-z.-]+$ ]] || { echo "::error::the rendered devcontainer.json names no stoily:<tag> Feature (${tag:-none})"; exit 1; }
+          if ! tj="$(curl -fsS --retry 3 "https://ghcr.io/token?scope=repository:stoilyhq/codespace/stoily:pull")"; then
+            echo "::error::could not get an anonymous GHCR token — devcontainer.json unchanged"; exit 1
+          fi
+          tok="$(node -e 'try { console.log(JSON.parse(require("fs").readFileSync(0, "utf8")).token || "") } catch (e) { console.log("") }' <<<"$tj")"
+          [ -n "$tok" ] || { echo "::error::GHCR's token answer holds no token — devcontainer.json unchanged"; exit 1; }
+          code="$(curl -sS --retry 3 -o /dev/null -w '%{http_code}' -I -H "Authorization: Bearer $tok" -H "Accept: application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json" "https://ghcr.io/v2/stoilyhq/codespace/stoily/manifests/$tag" || true)"
+          case "$code" in
+            200) ;;
+            404) echo "::notice::ghcr.io/stoilyhq/codespace/stoily:$tag is not published (yet) — devcontainer.json unchanged; the next run retries"; exit 0 ;;
+            *) echo "::error::GHCR answered ${code:-nothing} for stoily:$tag — devcontainer.json unchanged"; exit 1 ;;
+          esac
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -q -m "chore: render stoilyhq/codespace@$SHA + stoily.json into .devcontainer/devcontainer.json"
+          git push -q origin "HEAD:$REF" || {
+            echo "::error::the push to $REF was rejected — someone pushed meanwhile (a stoily.json edit?); the next run renders again"; exit 1; }

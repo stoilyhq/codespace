@@ -1,0 +1,30 @@
+name: test
+# Every push and PR. Runs on GitHub-hosted runners only: this repo is public, so a fork's PR must
+# never reach a self-hosted runner. No secrets are used.
+on:
+  push:
+  pull_request:
+  workflow_call:
+permissions:
+  contents: read
+# One group per workflow + event: when release.yml calls this workflow on a push to main, the two
+# runs never share a group, so neither cancels the other (a cancelled release test = no green release run).
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  offline:
+    if: github.repository == 'stoilyhq/codespace'   # never in an org's copy (Use this template copies .github/)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: 22 }
+      - name: public tree (no credential, store id, internal host or client org)
+        run: bash test/public-tree
+      - name: shellcheck
+        run: shellcheck -S error test/run test/public-tree
+      - name: offline suite (workflow guards, template, renderer, updater)
+        run: bash test/run

@@ -1,0 +1,385 @@
+#!/usr/bin/env bash
+# Offline tests for the Stoily Codespace template: `bash test/run`. No AI, no sign-in, no network:
+# the workflow guards, the starter template, the renderer (.github/stoily-render.js) and the updater's
+# own steps (.github/workflows/stoily-update.yml), run as GitHub runs them against a stub curl and
+# local git origins.
+set -uo pipefail
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
+T="$(mktemp -d)" && [ -d "$T" ] || { echo "test/run: mktemp failed"; exit 1; }
+trap 'rm -rf "$T"' EXIT
+pass=0 fail=0
+ok()  { pass=$((pass + 1)); echo "  ✅ $*"; }
+no()  { fail=$((fail + 1)); echo "  ❌ $*"; }
+is()  { if [ "$2" = "$3" ]; then ok "$1"; else no "$1 — want [$3] got [$2]"; fi; }
+has() { if [[ "$2" == *"$3"* ]]; then ok "$1"; else no "$1 — [$3] not in: $(head -c 400 <<<"$2")"; fi; }
+
+# An isolated world: fake HOME, git identity
+export HOME="$T/home" GIT_CONFIG_GLOBAL="$T/gitconfig" GIT_CONFIG_NOSYSTEM=1
+unset GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL GIT_DIR GIT_WORK_TREE GITHUB_REPOSITORY GITHUB_USER
+# The org of this test world (not a real one).
+ORG=testorg
+mkdir -p "$HOME"
+git config --global user.name test && git config --global user.email test@example.com
+git config --global init.defaultBranch main
+# The Feature major the template pins (ghcr.io/stoilyhq/codespace/stoily:<MAJOR>). Moving every org to a
+# new major = this line + the template's Feature key, in one commit (the updater refuses only a LOWER one).
+MAJOR=3
+
+echo "the workflows: every job guarded, each file all one kind"
+# stoilyhq's own CI + release run ONLY in stoilyhq/codespace (==); the updater ONLY in an org's copy (!=).
+# Use this template copies .github/ into every org, so a job without its guard runs in the wrong place.
+for wf in "$REPO"/.github/workflows/*.y*ml; do
+  jobs="$(awk '/^jobs:/{j=1;next} j && /^  [A-Za-z0-9_-]+:/' "$wf" | wc -l | tr -d ' ')"
+  # anchored at the line end (a trailing comment only): `… == 'stoilyhq/codespace' || x` is not a guard
+  eq="$(grep -cE "^    if: github\.repository == 'stoilyhq/codespace'( && github\.ref == 'refs/heads/main')?[[:space:]]*(#.*)?\$" "$wf")"
+  ne="$(grep -cE "^    if: github\.repository != 'stoilyhq/codespace'[[:space:]]*(#.*)?\$" "$wf")"
+  case "$(basename "$wf")" in
+    stoily-update.yml) want="0 $jobs"; kind="!= (only in an org's copy)" ;;
+    *)                 want="$jobs 0"; kind="== (never in an org's copy)" ;;
+  esac
+  if [ "$jobs" -gt 0 ] && [ "$eq $ne" = "$want" ]; then ok "$(basename "$wf"): all $jobs job(s) guarded $kind"
+  else no "$(basename "$wf"): $jobs job(s), $eq guarded ==, $ne guarded != — want every job $kind"; fi
+done
+UW="$REPO/.github/workflows/stoily-update.yml"
+is "the updater exists" "$([ -f "$UW" ] && echo yes)" yes
+is "…triggers: daily schedule, Run workflow, a push of stoily.json" "$(grep -cE '^  schedule:$|^  workflow_dispatch:$|^      - \.devcontainer/stoily\.json$' "$UW")" 3
+is "…may write contents (it commits devcontainer.json)" "$(grep -cE '^  contents: write' "$UW")" 1
+has "…finds the commit of the latest SUCCESSFUL push-to-main release run" "$(cat "$UW")" '"https://api.github.com/repos/stoilyhq/codespace/actions/workflows/release.yml/runs?branch=main&event=push&status=success&per_page=1"'
+has "…and fetches the template AT that commit" "$(cat "$UW")" '"https://raw.githubusercontent.com/stoilyhq/codespace/$sha/.devcontainer/devcontainer.json"'
+is "…never a branch's template (no /main/ or /released/ raw URL in .github or the README)" "$(cat "$REPO"/.github/workflows/*.y*ml "$REPO/README.md" | grep -cE 'raw\.githubusercontent\.com/stoilyhq/codespace/(main|released)/')" 0
+is "…the GHCR manifest check reads the HTTP code (one call; 200 commits, 404 a notice, else an error)" "$(grep -cF -- "-w '%{http_code}'" "$UW") $(grep -c 'manifests/' "$UW") $(grep -cE '^ *(200\) ;;|404\) echo "::notice::|\*\) echo "::error::GHCR answered)' "$UW")" "1 1 3"
+is "…the runs lookup retries (--retry 3, with the token and without)" "$(grep -c 'curl -fsS --retry 3 -H "Authorization: Bearer $GITHUB_TOKEN" "$runs"' "$UW") $(grep -c 'curl -fsS --retry 3 "$runs"' "$UW")" "1 1"
+is "…checks out the branch (not the commit the run started on)" "$(grep -c 'with: { ref: "${{ github.ref }}" }' "$UW")" 1
+is "…no other template URL" "$(grep -c 'raw.githubusercontent.com' "$UW")" 1
+gl="$(grep -n 'ghcr.io/v2/stoilyhq/codespace/stoily/manifests/' "$UW" | head -1 | cut -d: -f1)"; cl="$(grep -n '^ *git commit ' "$UW" | head -1 | cut -d: -f1)"
+is "…checks the rendered Feature version is on GHCR BEFORE it commits" "$([ -n "$gl" ] && [ -n "$cl" ] && [ "$gl" -lt "$cl" ] && echo before)" before
+has "…a missing version (404) → a notice, the job stays green" "$(cat "$UW")" 'is not published (yet) — devcontainer.json unchanged; the next run retries"; exit 0 ;;'
+has "…pushes to the branch it ran on" "$(cat "$UW")" 'git push -q origin "HEAD:$REF"'
+has "…REF = the triggering branch" "$(cat "$UW")" 'REF: ${{ github.ref_name }}'
+RW="$REPO/.github/workflows/release.yml"
+is "release.yml is named release (the updater asks for its runs by that file name)" "$(grep -cxE 'name: release' "$RW")" 1
+is "…runs on a push to main (the updater picks only push-to-main runs)" "$(awk '/^on:/{o=1;next} o && /^[a-z]/{o=0} o' "$RW" | grep -cE '^  push:$|^    branches: \[main\]$')" 2
+is "…ONE job, test, that runs the suite (a run whose jobs are all skipped is not a green release)" "$(awk '/^jobs:/{j=1;next} j && /^  [A-Za-z0-9_-]+:/' "$RW" | tr -d ' ') $(grep -c '^    uses: ./.github/workflows/test.yml' "$RW")" "test: 1"
+is "…publishes nothing (no packages:, no contents: write, no publish step)" "$(grep -vE '^ *#' "$RW" | grep -cE 'packages:|contents: write|publish')" 0
+is "…and moves no branch (no git push, no refs API, no released)" "$(grep -cE 'git push|git/refs|released' "$RW")" 0
+has "…with the renderer, into devcontainer.json, naming the source commit" "$(cat "$UW")" 'node .github/stoily-render.js --source "$SHA" "$RUNNER_TEMP/template.json" .devcontainer/stoily.json .devcontainer/devcontainer.json'
+has "…and commits only when it changed (staged: a NEW file counts)" "$(cat "$UW")" 'git add .devcontainer/devcontainer.json
+          if git diff --cached --quiet -- .devcontainer/devcontainer.json; then'
+is "…adding devcontainer.json only" "$(grep -cE '^ *git add ' "$UW") $(grep -E '^ *git add ' "$UW" | awk '{print $NF}')" "1 .devcontainer/devcontainer.json"
+is "…every action pinned to a commit" "$(grep -E '^ *- uses: ' "$UW" | grep -cvE '@[0-9a-f]{40} # ')" 0
+
+echo "the starter (repo root): the template at :$MAJOR with a placeholder grant, stoily.json"
+tpl="$REPO/.devcontainer/devcontainer.json"
+is "exactly one <org>/* grant, the placeholder" "$(sed -nE 's/^[[:space:]]*"([^"]+)\/\*"[[:space:]]*:.*/\1/p' "$tpl")" "YOUR-ORG"
+has "references the Feature by its major (:$MAJOR)" "$(cat "$tpl")" "\"ghcr.io/stoilyhq/codespace/stoily:$MAJOR\""
+is "…and by nothing else (no digest, no other tag)" "$(grep -c 'ghcr.io/stoilyhq/codespace/stoily' "$tpl")" 1
+is "carries no lifecycle command of its own (the Feature does)" "$(grep -cE '"(postCreate|postStart|onCreate)Command"' "$tpl")" 0
+is "the template keeps its comments (it is the source, not a render)" "$(grep -c '^ *//' "$tpl" | awk '{print ($1 > 3)}')" 1
+is "stoily.json = the placeholder org + the defaults" "$(node -e 'console.log(JSON.stringify(require(process.argv[1])))' "$REPO/.devcontainer/stoily.json")" '{"org":"YOUR-ORG","owner":"","maxHours":"","clientPrefix":"client-","galleryRepo":""}'
+
+echo "the renderer (.github/stoily-render.js): an org's devcontainer.json = the template + stoily.json"
+RJ="$REPO/.github/stoily-render.js"; RD="$T/render"; mkdir -p "$RD"
+render() { node "$RJ" "$@" 2>&1; }
+printf '{"org":"%s","owner":"boss","maxHours":"6","clientPrefix":"client-","galleryRepo":"designs"}\n' "$ORG" > "$RD/stoily.json"
+out="$(render "$tpl" "$RD/stoily.json" "$RD/out.json")"; rc=$?
+is "renders (exit 0)" "$rc" 0
+is "first line: GENERATED, edit stoily.json" "$(head -1 "$RD/out.json")" "// GENERATED from stoilyhq/codespace — edit .devcontainer/stoily.json"
+render --source 0123456789abcdef0123456789abcdef01234567 "$tpl" "$RD/stoily.json" "$RD/out-src.json" >/dev/null
+is "--source <sha> → the first line names the stoilyhq commit" "$(head -1 "$RD/out-src.json")" "// GENERATED from stoilyhq/codespace@0123456789abcdef0123456789abcdef01234567 — edit .devcontainer/stoily.json"
+is "…the rest is the same render" "$(tail -n +2 "$RD/out-src.json" | cmp -s - <(tail -n +2 "$RD/out.json") && echo same)" same
+is "--source with no commit sha → refused, nothing written" "$(render --source main "$tpl" "$RD/stoily.json" "$RD/out-bad.json" >/dev/null; echo "$? $([ -e "$RD/out-bad.json" ] && echo written || echo none)")" "1 none"
+printf '{\n  // our org, set below\n  "org": "acme" /* yes */\n}\n' > "$RD/commented.json"; printf '{"org": "x" /* not closed\n' > "$RD/broken.json"
+is "--org reads stoily.json with comments" "$(node "$RJ" --org "$RD/commented.json")" acme
+is "--org on an unreadable file → empty, exit 0" "$(node "$RJ" --org "$RD/broken.json"; echo "rc=$?")" "
+rc=0"
+rj() { tail -n +2 "$1" | node -e "const j=JSON.parse(require('fs').readFileSync(0,'utf8')); $2" 2>&1; }
+is "valid JSON after the first line" "$(rj "$RD/out.json" 'console.log(typeof j)')" object
+is "the ONE grant: <org>/* with contents write" "$(rj "$RD/out.json" 'console.log(JSON.stringify(j.customizations.codespaces.repositories))')" "{\"$ORG/*\":{\"permissions\":{\"contents\":\"write\"}}}"
+is "the Feature key: stoily:$MAJOR" "$(rj "$RD/out.json" 'console.log(Object.keys(j.features).join(" "))')" "ghcr.io/stoilyhq/codespace/stoily:$MAJOR"
+is "its options = stoily.json (org too)" "$(rj "$RD/out.json" "console.log(JSON.stringify(j.features['ghcr.io/stoilyhq/codespace/stoily:$MAJOR']))")" "{\"org\":\"$ORG\",\"owner\":\"boss\",\"maxHours\":\"6\",\"clientPrefix\":\"client-\",\"galleryRepo\":\"designs\"}"
+is "everything else is the template's" "$(rj "$RD/out.json" 'console.log(j.name+"|"+j.image+"|"+JSON.stringify(j.hostRequirements))')" 'Stoily Codespace|mcr.microsoft.com/devcontainers/javascript-node:22|{"cpus":2,"memory":"8gb","storage":"32gb"}'
+render "$tpl" "$RD/stoily.json" "$RD/out2.json" >/dev/null
+is "rendered twice → byte-identical" "$(cmp -s "$RD/out.json" "$RD/out2.json" && echo same)" same
+# a template with comments in odd places, a // inside a string, trailing commas, another Feature, a
+# Feature option the org does not set, and a SECOND grant (written as STAR: public-tree refuses a literal one)
+cat > "$RD/tpl2.json" <<'TPL2'
+{
+  // a comment with https://example.com/x in it
+  "name": "a // not a comment", /* a block comment */
+  "features": {
+    "ghcr.io/stoilyhq/codespace/stoily:2": { "codexVersion": "1.2.3", "org": "zzz" },
+    "ghcr.io/devcontainers/features/node:1": {},
+  },
+  "customizations": { "codespaces": { "repositories": { "evil/STAR": { "permissions": "write-all" } } }, "vscode": { "x": 1 } },
+}
+TPL2
+sed -i 's#/STAR"#/*"#' "$RD/tpl2.json"
+out="$(render "$RD/tpl2.json" "$RD/stoily.json" "$RD/out3.json")"; rc=$?
+is "a template with comments, a // in a string, trailing commas → renders" "$rc" 0
+is "…the string keeps its //" "$(rj "$RD/out3.json" 'console.log(j.name)')" "a // not a comment"
+is "…any other grant is dropped: only <org>/*" "$(rj "$RD/out3.json" 'console.log(Object.keys(j.customizations.codespaces.repositories).join(" "))')" "$ORG/*"
+is "…the template's own option + other Feature + vscode kept, org set" "$(rj "$RD/out3.json" 'const f=j.features["ghcr.io/stoilyhq/codespace/stoily:2"];console.log(f.codexVersion+" "+f.org+" "+Object.keys(j.features).length+" "+j.customizations.vscode.x)')" "1.2.3 $ORG 2 1"
+cp "$RD/out.json" "$RD/keep.json"
+for bad in '"constructor":"x"' '"__proto__":"x"' '"toString":"x"' '"org":"a.b"' '"org":"YOUR-ORG"' '"org":"your-org"' '"org":""' '"maxHours":"six"' '"owner":"a b"' '"clientPrefix":""' '"clientPrefix":"Client-"' '"galleryRepo":"../x"' '"galleryRepo":"a/b/c"' '"extra":"x"' '"org":7'; do
+  case "$bad" in '"org"'*) body="{$bad}" ;; *) body="{\"org\":\"$ORG\",$bad}" ;; esac
+  printf '%s\n' "$body" > "$RD/bad.json"
+  out="$(render "$tpl" "$RD/bad.json" "$RD/out.json")"; rc=$?
+  if [ "$rc" = 1 ] && cmp -s "$RD/out.json" "$RD/keep.json"; then ok "stoily.json $bad → refused, nothing written"
+  else no "stoily.json $bad → rc $rc (want 1), output $(cmp -s "$RD/out.json" "$RD/keep.json" && echo kept || echo CHANGED): $out"; fi
+  cp "$RD/keep.json" "$RD/out.json"
+done
+has "…YOUR-ORG says why" "$(printf '{"org":"YOUR-ORG"}\n' > "$RD/bad.json"; render "$tpl" "$RD/bad.json" "$RD/out.json")" 'still the placeholder YOUR-ORG'
+printf '{"org":"%s"}\n' "$ORG" > "$RD/min.json"
+is "stoily.json with only org → the defaults for the rest" "$(render "$tpl" "$RD/min.json" "$RD/min-out.json" >/dev/null; rj "$RD/min-out.json" "console.log(JSON.stringify(j.features['ghcr.io/stoilyhq/codespace/stoily:$MAJOR']))")" "{\"org\":\"$ORG\",\"owner\":\"\",\"maxHours\":\"\",\"clientPrefix\":\"client-\",\"galleryRepo\":\"\"}"
+printf '{"name":"x","features":{"ghcr.io/devcontainers/features/node:1":{}}}\n' > "$RD/nofeat.json"
+for k in 'ghcr.io/stoilyhq/codespace/stoily@sha256:0123' 'ghcr.io/stoilyhq/codespace/stoily'; do
+  printf '{"features":{"ghcr.io/stoilyhq/codespace/stoily:2":{},"%s":{}}}\n' "$k" > "$RD/two.json"; printf '{"features":{"%s":{}}}\n' "$k" > "$RD/one.json"
+  is "a template with $k too → refused" "$(render "$RD/two.json" "$RD/stoily.json" "$RD/two-out.json" >/dev/null; echo "$? $([ -e "$RD/two-out.json" ] && echo written || echo none)")" "1 none"
+  is "…or with only $k (not a tag) → refused" "$(render "$RD/one.json" "$RD/stoily.json" "$RD/one-out.json" >/dev/null; echo "$? $([ -e "$RD/one-out.json" ] && echo written || echo none)")" "1 none"
+done
+mkdir -p "$RD/ro" && chmod 555 "$RD/ro"
+out="$(render "$tpl" "$RD/stoily.json" "$RD/ro/out.json")"; rc=$?; chmod 755 "$RD/ro"
+if [ "$(id -u)" = 0 ]; then ok "an unwritable output (skipped as root)"; else is "an unwritable output → exit 1 with the reason, no stray file" "$rc $(grep -c 'cannot write' <<<"$out") $(ls -A "$RD/ro" | wc -l | tr -d ' ')" "1 1 0"; fi
+is "a template without the stoily Feature → refused" "$(render "$RD/nofeat.json" "$RD/stoily.json" "$RD/nf-out.json" >/dev/null; echo "$? $([ -e "$RD/nf-out.json" ] && echo written || echo none)")" "1 none"
+
+echo "the updater's own steps, run as GitHub runs them (a stub curl for GHCR, a local origin)"
+is "the updater never runs on a tag push (push.branches set: path filters are skipped for tags)" "$(awk '/^  push:/{p=1;next} p && /^  [a-z]/{p=0} p' "$REPO/.github/workflows/stoily-update.yml" | grep -cE '^    branches: \["\*\*"\]')" 1
+# step_run <workflow> <part of a step name>: that step's `run: |` script
+step_run() { awk -v n="$2" '
+  /^      - / { inb = 0; f = (index($0, n) > 0) }
+  f && /^        run: \|$/ { inb = 1; next }
+  inb && /^          / { sub(/^          /, ""); print; next }
+  inb && /^ *[^ ]/ { inb = 0 }
+' "$1"; }
+ghrun() { bash --noprofile --norc -eo pipefail "$@"; }   # GitHub's bash for run:
+step_run "$UW" 'still the placeholder' > "$T/upd-org.sh"; step_run "$UW" 'fetch the stoilyhq template' > "$T/upd-src.sh"; step_run "$UW" 'commit it when it changed' > "$T/upd-commit.sh"
+is "…the three steps found" "$([ -s "$T/upd-org.sh" ] && [ -s "$T/upd-src.sh" ] && [ -s "$T/upd-commit.sh" ] && echo yes)" yes
+UR="$T/upd"; git init -q --bare "$UR-origin.git"; git init -q -b main "$UR"; git -C "$UR" remote add origin "$UR-origin.git"
+mkdir -p "$UR/.devcontainer" "$UR/.github"; cp "$REPO/.devcontainer/stoily.json" "$UR/.devcontainer/stoily.json"; cp "$RJ" "$UR/.github/stoily-render.js"
+: > "$T/gh-out"
+out="$(cd "$UR" && GITHUB_OUTPUT="$T/gh-out" ghrun "$T/upd-org.sh" 2>&1)"; rc=$?
+is "stoily.json still YOUR-ORG → the first step exits 0" "$rc" 0
+has "…with a notice saying what to do" "$out" '::notice::set "org" in .devcontainer/stoily.json (it is still YOUR-ORG)'
+is "…and tells the later steps to skip" "$(cat "$T/gh-out")" "skip=1"
+cp "$UR/.devcontainer/stoily.json" "$T/stoily.keep"; printf '{\n  // set your org here\n  "org": "YOUR-ORG"\n}\n' > "$UR/.devcontainer/stoily.json"; : > "$T/gh-out"
+out="$(cd "$UR" && GITHUB_OUTPUT="$T/gh-out" ghrun "$T/upd-org.sh" 2>&1)"; rc=$?; cp "$T/stoily.keep" "$UR/.devcontainer/stoily.json"
+is "a stoily.json WITH comments, still YOUR-ORG → the same notice + skip (not a red run)" "$rc $(grep -c '::notice::set "org"' <<<"$out") $(cat "$T/gh-out")" "0 1 skip=1"
+is "…every later step honours it (and the template step's own skip)" "$(grep -cE "^        if: steps\.org\.outputs\.skip != '1'( && steps\.src\.outputs\.skip != '1')?\$" "$UW") $(grep -c "^        if: steps.org.outputs.skip != '1' && steps.src.outputs.skip != '1'\$" "$UW")" "3 2"
+printf '{"org":"%s"}\n' "$ORG" > "$UR/.devcontainer/stoily.json"; : > "$T/gh-out"
+out="$(cd "$UR" && GITHUB_OUTPUT="$T/gh-out" ghrun "$T/upd-org.sh" 2>&1)"; rc=$?
+is "an org set → no notice, no skip" "$rc $(grep -c notice <<<"$out") $(cat "$T/gh-out")" "0 0 "
+node "$RJ" "$tpl" "$UR/.devcontainer/stoily.json" "$UR/.devcontainer/devcontainer.json"
+git -C "$UR" add -A && git -C "$UR" commit -qm base && git -C "$UR" push -q origin HEAD:main
+mkdir -p "$T/curlstub"
+# A stub curl that behaves like curl where it matters: an HTTP error is rc 22 only WITH -f (without it:
+# rc 0, the error page on stdout); -w '%{http_code}' prints the code (000 with no connection).
+# Modes: $T/runs-mode = ok (the body in $T/runs-body) | http:<code> | auth:<code> (that code WITH the
+# Authorization header, the body without it) | net;  $T/tok-mode = ok | http:<code> | net;
+# $T/curl-rc for the GHCR manifest = 0 (200) | an HTTP code | net.
+cat > "$T/curlstub/curl" <<CURL
+#!/usr/bin/env bash
+f=0 o="" url="" w="" auth=0 prev=""
+for a in "\$@"; do
+  [ "\$prev" = -o ] && o="\$a"; [ "\$prev" = -w ] && w="\$a"
+  case "\$a" in --*) ;; -*f*) [[ "\$a" =~ ^-[A-Za-z]+\$ ]] && f=1 ;; https://*) url="\$a" ;; "Authorization: Bearer "*) auth=1 ;; esac
+  prev="\$a"
+done
+code() { [ -z "\$w" ] || printf '%s' "\$1"; }
+fail() { if [ "\$f" = 1 ]; then echo "curl: (22) The requested URL returned error: \$1" >&2; exit 22; fi; code "\$1"; [ -n "\$w" ] || echo "<html>\$1</html>"; exit 0; }
+net() { code 000; echo "curl: (6) Could not resolve host" >&2; exit 6; }
+case "\$url" in
+  *"/token?scope="*) m="\$(cat "$T/tok-mode" 2>/dev/null || echo ok)"
+    case "\$m" in http:*) fail "\${m#http:}" ;; net) net ;; *) echo '{"token":"anon"}' ;; esac ;;
+  https://api.github.com/*/compare/*) echo "\$url auth=\$auth" >> "$T/curl.log"; m="\$(cat "$T/cmp-mode")"
+    case "\$m" in http:*) fail "\${m#http:}" ;; auth:*) [ "\$auth" = 1 ] && fail "\${m#auth:}"; cat "$T/cmp-body" ;; net) net ;; *) cat "$T/cmp-body" ;; esac ;;
+  https://api.github.com/*) echo "\$url auth=\$auth" >> "$T/curl.log"; m="\$(cat "$T/runs-mode")"
+    case "\$m" in http:*) fail "\${m#http:}" ;; auth:*) [ "\$auth" = 1 ] && fail "\${m#auth:}"; cat "$T/runs-body" ;; net) net ;; *) cat "$T/runs-body" ;; esac ;;
+  https://raw.githubusercontent.com/*) echo "\$url" >> "$T/curl.log"; cp "$tpl" "\$o" ;;
+  *manifests/*) echo "\$url" >> "$T/curl.log"; m="\$(cat "$T/curl-rc")"
+    case "\$m" in 0) code 200 ;; net) net ;; *) fail "\$m" ;; esac ;;
+  *) exit 2 ;;
+esac
+CURL
+chmod +x "$T/curlstub/curl"
+SHA1="0123456789abcdef0123456789abcdef01234567"
+src() { # src <runs-mode> [<body>]: the template step, as GitHub runs it
+  echo "$1" > "$T/runs-mode"; printf '%s' "${2:-}" > "$T/runs-body"; : > "$T/gh-out"; : > "$T/curl.log"; mkdir -p "$T/rt"; rm -f "$T/rt/template.json"
+  (cd "$UR" && PATH="$T/curlstub:$PATH" GITHUB_OUTPUT="$T/gh-out" RUNNER_TEMP="$T/rt" GITHUB_TOKEN=tok ghrun "$T/upd-src.sh" 2>&1)
+}
+out="$(src ok "{\"total_count\":1,\"workflow_runs\":[{\"head_sha\":\"$SHA1\"}]}")"; rc=$?
+is "a green release run → its head_sha is the source" "$rc $(cat "$T/gh-out")" "0 sha=$SHA1"
+has "…the runs asked for: release.yml, main, push, success" "$(cat "$T/curl.log")" "https://api.github.com/repos/stoilyhq/codespace/actions/workflows/release.yml/runs?branch=main&event=push&status=success&per_page=1"
+has "…the template fetched AT that commit" "$(cat "$T/curl.log")" "https://raw.githubusercontent.com/stoilyhq/codespace/$SHA1/.devcontainer/devcontainer.json"
+is "…into RUNNER_TEMP" "$(cmp -s "$T/rt/template.json" "$tpl" && echo fetched)" fetched
+out="$(src ok '{"total_count":0,"workflow_runs":[]}')"; rc=$?
+is "no successful release yet (an empty list) → green, skip, nothing fetched" "$rc $(cat "$T/gh-out") $(grep -c raw.githubusercontent "$T/curl.log")" "0 skip=1 0"
+has "…with a notice" "$out" "::notice::stoilyhq/codespace has no successful release yet"
+okbody="{\"workflow_runs\":[{\"head_sha\":\"$SHA1\"}]}"
+for c in 401 403 404; do
+  out="$(src "auth:$c" "$okbody")"; rc=$?
+  is "the API refuses the token ($c) → asked once more WITHOUT it (the endpoint is public) → the source" "$rc $(cat "$T/gh-out") $(grep -c 'auth=1' "$T/curl.log") $(grep -c 'api.github.com.*auth=0' "$T/curl.log")" "0 sha=$SHA1 1 1"
+done
+out="$(src http:500 "$okbody")"; rc=$?
+is "a 500 is not retried without the token (it is not a token problem)" "$(grep -c 'auth=0' "$T/curl.log")" 0
+for c in "http:500|the API answers 500" "http:404|the API answers 404, with and without the token" "http:403|the API answers 403, with and without the token" "net|no network" "ok|<html>rate limited</html>|an answer that is not JSON" 'ok|{"message":"Not Found"}|JSON that is not the runs list' "ok|{\"workflow_runs\":[{\"head_sha\":\"main\"}]}|a head_sha that is not a commit" 'ok|{"workflow_runs":[{"head_sha":null}]}|a run with no head_sha'; do
+  IFS='|' read -r mode a b <<<"$c"; if [ -n "$b" ]; then body="$a" why="$b"; else body="" why="$a"; fi
+  out="$(src "$mode" "$body")"; rc=$?
+  if [ "$rc" != 0 ] && [[ "$out" == *"::error::"* ]] && [ ! -s "$T/gh-out" ] && ! grep -q raw.githubusercontent "$T/curl.log"; then ok "$why → an error, a red step, no skip, nothing fetched"
+  else no "$why → rc $rc, out: $(head -c 200 <<<"$out"), outputs: $(cat "$T/gh-out")"; fi
+done
+upd() { echo "$1" > "$T/curl-rc"; : > "$T/curl.log"; mkdir -p "$T/rt"; (cd "${UDIR:-$UR}" && PATH="$T/curlstub:$PATH" REF=main SHA="${USHA:-$SHA1}" GITHUB_TOKEN=tok RUNNER_TEMP="$T/rt" ghrun "$T/upd-commit.sh" 2>&1); }
+cmpmode() { echo "$1" > "$T/cmp-mode"; printf '%s' "${2:-}" > "$T/cmp-body"; }
+o0="$(git -C "$UR" rev-parse HEAD)"
+out="$(upd 0)"; rc=$?
+is "nothing changed → exit 0, no commit, no GHCR call" "$rc $(git -C "$UR" rev-parse HEAD) $(cat "$T/curl.log" 2>/dev/null | wc -l | tr -d ' ')" "0 $o0 0"
+printf '{"org":"%s","owner":"boss"}\n' "$ORG" > "$UR/.devcontainer/stoily.json"
+node "$RJ" "$tpl" "$UR/.devcontainer/stoily.json" "$UR/.devcontainer/devcontainer.json"
+out="$(upd 404)"; rc=$?
+is "a changed render, GHCR says 404 (not published yet) → exit 0, nothing committed or pushed" "$rc $(git -C "$UR" rev-parse HEAD) $(git --git-dir="$UR-origin.git" rev-parse main)" "0 $o0 $o0"
+has "…with a notice" "$out" "::notice::ghcr.io/stoilyhq/codespace/stoily:$MAJOR is not published (yet)"
+for c in 401 500 503 net; do
+  out="$(upd "$c")"; rc=$?
+  if [ "$rc" != 0 ] && [[ "$out" == *"::error::GHCR answered"* ]] && [ "$(git -C "$UR" rev-parse HEAD) $(git --git-dir="$UR-origin.git" rev-parse main)" = "$o0 $o0" ]; then ok "GHCR answers $c → an error, a red step, nothing committed or pushed"
+  else no "GHCR answers $c → rc $rc, out: $(head -c 200 <<<"$out")"; fi
+done
+for c in http:503 net; do
+  echo "$c" > "$T/tok-mode"; out="$(upd 0)"; rc=$?; rm -f "$T/tok-mode"
+  if [ "$rc" != 0 ] && [[ "$out" == *"::error::could not get an anonymous GHCR token"* ]] && [ "$(git -C "$UR" rev-parse HEAD)" = "$o0" ]; then ok "the GHCR token endpoint fails ($c) → an error, nothing committed"
+  else no "the GHCR token endpoint fails ($c) → rc $rc, out: $(head -c 200 <<<"$out")"; fi
+done
+out="$(upd 404)"
+has "…it asked for the rendered tag's manifest" "$(cat "$T/curl.log")" "https://ghcr.io/v2/stoilyhq/codespace/stoily/manifests/$MAJOR"
+out="$(upd 0)"; rc=$?
+is "the version is on GHCR → committed and pushed to REF" "$rc $(git --git-dir="$UR-origin.git" rev-parse main)" "0 $(git -C "$UR" rev-parse HEAD)"
+is "…its message names the stoilyhq commit it rendered" "$(git -C "$UR" log -1 --format=%s)" "chore: render stoilyhq/codespace@$SHA1 + stoily.json into .devcontainer/devcontainer.json"
+is "…a new commit holding devcontainer.json only" "$([ "$(git -C "$UR" rev-parse HEAD)" != "$o0" ] && git -C "$UR" show --name-only --format= HEAD)" ".devcontainer/devcontainer.json"
+is "…stoily.json is not committed by it" "$(git -C "$UR" status --porcelain | cut -c4-)" ".devcontainer/stoily.json"
+# Two runs queued on one branch: run 1 started at C1 (a stoily.json push) and pushed its render (C2);
+# run 2, started at C1 too, must render from C2: "current", never a push rejected as non-fast-forward.
+step_run "$UW" 'go to the branch tip' > "$T/upd-tip.sh"
+printf '{"org":"%s","owner":"boss2"}\n' "$ORG" > "$UR/.devcontainer/stoily.json"
+git -C "$UR" add .devcontainer/stoily.json && git -C "$UR" commit -qm "stoily.json: owner boss2" && git -C "$UR" push -q origin HEAD:main
+c1="$(git -C "$UR" rev-parse HEAD)"
+git clone -q "$UR-origin.git" "$T/upd-run1" && node "$RJ" "$tpl" "$T/upd-run1/.devcontainer/stoily.json" "$T/upd-run1/.devcontainer/devcontainer.json"
+git -C "$T/upd-run1" commit -qam "run 1's render" && git -C "$T/upd-run1" push -q origin HEAD:main
+c2="$(git --git-dir="$UR-origin.git" rev-parse main)"
+out="$(cd "$UR" && REF=main ghrun "$T/upd-tip.sh" 2>&1)"; rc=$?
+is "run 2 (checked out at C1) moves to the branch tip first" "$rc $(git -C "$UR" rev-parse HEAD)" "0 $c2"
+node "$RJ" "$tpl" "$UR/.devcontainer/stoily.json" "$UR/.devcontainer/devcontainer.json"
+out="$(upd 0)"; rc=$?
+is "…then its render is current: exit 0, no commit, origin untouched" "$rc $(git -C "$UR" rev-parse HEAD) $(git --git-dir="$UR-origin.git" rev-parse main)" "0 $c2 $c2"
+has "…says so" "$out" "devcontainer.json is current"
+is "…(C1 was not the tip)" "$([ "$c1" != "$c2" ] && echo moved)" moved
+rm -rf "$T/upd-run1"
+# Never BACK to an older template: the committed file names the stoilyhq commit it was rendered from.
+SHA_A="1111111111111111111111111111111111111111" SHA_B="2222222222222222222222222222222222222222" SHA_C="3333333333333333333333333333333333333333"
+uj() { node "$RJ" --source "$1" "${3:-$tpl}" "$UR/.devcontainer/stoily.json" "$UR/.devcontainer/devcontainer.json"; }
+owner() { printf '{"org":"%s","owner":"%s"}\n' "$ORG" "$1" > "$UR/.devcontainer/stoily.json"; git -C "$UR" add .devcontainer/stoily.json; }
+owner b1; uj "$SHA_B"; git -C "$UR" commit -qam "rendered from @B" && git -C "$UR" push -q origin HEAD:main; hB="$(git -C "$UR" rev-parse HEAD)"
+owner b2; uj "$SHA_A"; git -C "$UR" commit -qm "stoily.json b2"
+hS="$(git -C "$UR" rev-parse HEAD)"
+cmpmode ok '{"status":"ahead"}'; out="$(USHA="$SHA_A" upd 0)"; rc=$?
+is "a stoilyhq commit OLDER than the committed render's (compare: ahead) → exit 0, nothing committed" "$rc $(git -C "$UR" rev-parse HEAD)" "0 $hS"
+has "…with a notice" "$out" "::notice::would go back to an older template (stoilyhq/codespace@$SHA_A is older than @$SHA_B)"
+has "…it compared new...committed" "$(cat "$T/curl.log")" "https://api.github.com/repos/stoilyhq/codespace/compare/$SHA_A...$SHA_B auth=1"
+cmpmode auth:403 '{"status":"ahead"}'; out="$(USHA="$SHA_A" upd 0)"; rc=$?
+is "…the compare refuses the token (403) → asked once without it, same answer" "$rc $(grep -c 'compare/.*auth=0' "$T/curl.log") $(git -C "$UR" rev-parse HEAD)" "0 1 $hS"
+for c in "http:500|the compare API answers 500" "net|no network for the compare" 'ok|{"message":"No common ancestor"}|a compare answer with no status'; do
+  IFS='|' read -r mode a b <<<"$c"; if [ -n "$b" ]; then body="$a" why="$b"; else body="" why="$a"; fi
+  cmpmode "$mode" "$body"; out="$(USHA="$SHA_A" upd 0)"; rc=$?
+  if [ "$rc" != 0 ] && [[ "$out" == *"::error::"*"compare"* ]] && [ "$(git -C "$UR" rev-parse HEAD)" = "$hS" ]; then ok "$why → an error, a red step, nothing committed"
+  else no "$why → rc $rc, out: $(head -c 200 <<<"$out")"; fi
+done
+cmpmode ok '{"status":"behind"}'; uj "$SHA_C"; out="$(USHA="$SHA_C" upd 0)"; rc=$?   # C is NEWER than B
+is "a NEWER stoilyhq commit (compare: behind) → committed and pushed" "$rc $(git --git-dir="$UR-origin.git" rev-parse main) $(git -C "$UR" show HEAD:.devcontainer/devcontainer.json | head -1)" "0 $(git -C "$UR" rev-parse HEAD) // GENERATED from stoilyhq/codespace@$SHA_C — edit .devcontainer/stoily.json"
+NEXT=$((MAJOR + 1))
+sed "s#codespace/stoily:$MAJOR\"#codespace/stoily:$NEXT\"#" "$tpl" > "$T/tpl3.json"
+is "…(the next-major template differs from the template)" "$(cmp -s "$tpl" "$T/tpl3.json" || echo differs)" differs
+owner b3; uj "$SHA_C" "" "$T/tpl3.json"; git -C "$UR" commit -qam "a :$NEXT render" && git -C "$UR" push -q origin HEAD:main; h3="$(git -C "$UR" rev-parse HEAD)"
+owner b4; uj "$SHA_C"
+out="$(USHA="$SHA_C" upd 0)"; rc=$?
+is "a LOWER Feature major than the committed file's (:$NEXT → :$MAJOR) → exit 0, nothing committed (offline: no compare)" "$rc $(git -C "$UR" rev-parse HEAD) $(grep -c compare/ "$T/curl.log")" "0 $h3 0"
+has "…with a notice" "$out" "::notice::would go back to an older template (stoily:$NEXT → stoily:$MAJOR)"
+uj "$SHA_C" "" "$T/tpl3.json"; git -C "$UR" commit -qam "b4 at :$NEXT" && git -C "$UR" push -q origin HEAD:main
+# a push that loses the race (a stoily.json push in between) → said in the error, still red
+owner b5; uj "$SHA_C" "" "$T/tpl3.json"
+git clone -q "$UR-origin.git" "$T/upd-race" && echo x > "$T/upd-race/.devcontainer/note" && git -C "$T/upd-race" add -A && git -C "$T/upd-race" commit -qm race && git -C "$T/upd-race" push -q origin HEAD:main
+out="$(USHA="$SHA_C" upd 0)"; rc=$?
+if [ "$rc" != 0 ] && [[ "$out" == *"::error::the push to main was rejected — someone pushed meanwhile"* ]]; then ok "a rejected push (someone pushed meanwhile) → said, red"; else no "a rejected push → rc $rc, out: $(head -c 200 <<<"$out")"; fi
+rm -rf "$T/upd-race"
+# a branch whose devcontainer.json was deleted: the render is a NEW file, never "current"
+U2="$T/upd2"; git init -q --bare "$U2-origin.git"; git init -q -b main "$U2"; git -C "$U2" remote add origin "$U2-origin.git"
+mkdir -p "$U2/.devcontainer"; printf '{"org":"%s"}\n' "$ORG" > "$U2/.devcontainer/stoily.json"; git -C "$U2" add -A && git -C "$U2" commit -qm "no devcontainer.json" && git -C "$U2" push -q origin HEAD:main
+node "$RJ" --source "$SHA_C" "$tpl" "$U2/.devcontainer/stoily.json" "$U2/.devcontainer/devcontainer.json"
+out="$(UDIR="$U2" USHA="$SHA_C" upd 0)"; rc=$?
+is "no devcontainer.json on the branch (untracked render) → committed and pushed, not 'current'" "$rc $(git --git-dir="$U2-origin.git" show --name-only --format= main)" "0 .devcontainer/devcontainer.json"
+# urepo <dir> <committed devcontainer.json file or ""> <owner>: a fresh org repo with that file committed + pushed
+urepo() {
+  rm -rf "$1" "$1-origin.git"; git init -q --bare "$1-origin.git"; git init -q -b main "$1"; git -C "$1" remote add origin "$1-origin.git"
+  mkdir -p "$1/.devcontainer"; printf '{"org":"%s","owner":"%s"}\n' "$ORG" "$3" > "$1/.devcontainer/stoily.json"
+  [ -z "$2" ] || cp "$2" "$1/.devcontainer/devcontainer.json"
+  git -C "$1" add -A && git -C "$1" commit -qm base && git -C "$1" push -q origin HEAD:main
+}
+pushed() { [ "$(git --git-dir="$1-origin.git" rev-parse main)" = "$(git -C "$1" rev-parse HEAD)" ] && git --git-dir="$1-origin.git" log -1 --format=%s main; }
+# compare says the committed commit and the new one DIVERGED (a force-push upstream) → go on
+U3="$T/upd3"; printf '{"org":"%s","owner":"d1"}' "$ORG" > "$T/d1.json"; node "$RJ" --source "$SHA_B" "$tpl" "$T/d1.json" "$T/d-b.json"
+urepo "$U3" "$T/d-b.json" d2; node "$RJ" --source "$SHA_C" "$tpl" "$U3/.devcontainer/stoily.json" "$U3/.devcontainer/devcontainer.json"
+cmpmode ok '{"status":"diverged"}'; out="$(UDIR="$U3" USHA="$SHA_C" upd 0)"; rc=$?
+is "compare: diverged → committed and pushed" "$rc $(pushed "$U3")" "0 chore: render stoilyhq/codespace@$SHA_C + stoily.json into .devcontainer/devcontainer.json"
+has "…after asking the compare" "$(cat "$T/curl.log")" "compare/$SHA_C...$SHA_B"
+# the same stoilyhq commit (a stoily.json edit re-rendered): no compare call, committed
+U4="$T/upd4"; printf '{"org":"%s","owner":"s1"}' "$ORG" > "$T/s1.json"; node "$RJ" --source "$SHA_C" "$tpl" "$T/s1.json" "$T/s-c.json"
+urepo "$U4" "$T/s-c.json" s2; node "$RJ" --source "$SHA_C" "$tpl" "$U4/.devcontainer/stoily.json" "$U4/.devcontainer/devcontainer.json"
+cmpmode http:500; out="$(UDIR="$U4" USHA="$SHA_C" upd 0)"; rc=$?
+is "the committed render's own commit again (a stoily.json edit) → no compare call, committed and pushed" "$rc $(grep -c 'compare/' "$T/curl.log") $(pushed "$U4" | cut -c1-13)" "0 0 chore: render"
+# an org coming from kit 1: its committed devcontainer.json is the kit-1 file (comments, no GENERATED line)
+cat > "$T/kit1-devcontainer.json" <<'KIT1'
+{
+  // Your org's Stoily Codespace. Everything else (Codex, its locked config, the rules, the programs
+  // go/work/save/sync/new-client/check) comes from the stoily Feature, pulled again on every
+  // Codespace creation and every Rebuild container: ":1" = the newest 1.x, never a breaking change.
+  // See https://github.com/stoilyhq/codespace
+  "name": "Stoily Codespace",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "features": {
+    "ghcr.io/stoilyhq/codespace/stoily:1": {
+      // "org": "",            empty = the owner of this repo (set it only if your client repos live elsewhere)
+      // "clientPrefix": "client-",   client repos are <org>/client-<name>
+      "owner": "",             // your GitHub login: your terminals keep a plain shell; every other account's go straight into Codex
+      "maxHours": ""           // soft daily cap (hours) for those staff terminals; "" = none
+    }
+  },
+  // The smallest Codespace (2 cores / 8 GB): Codex + tmux need no more.
+  "hostRequirements": { "cpus": 2, "memory": "8gb", "storage": "32gb" },
+  "customizations": {
+    "codespaces": {
+      // Write access to your org's repos (the client repos). GitHub reads this before the container
+      // exists, so it cannot come from the Feature: replace YOUR-ORG with your org, exactly once.
+      "repositories": {
+        "YOUR-ORG/*": { "permissions": { "contents": "write" } }
+      }
+    }
+  }
+}
+KIT1
+sed -i "s#\"YOUR-ORG/\*\"#\"$ORG/*\"#" "$T/kit1-devcontainer.json"
+U5="$T/upd5"; urepo "$U5" "$T/kit1-devcontainer.json" boss
+node "$RJ" --source "$SHA_C" "$tpl" "$U5/.devcontainer/stoily.json" "$U5/.devcontainer/devcontainer.json"
+cmpmode http:500; out="$(UDIR="$U5" USHA="$SHA_C" upd 0)"; rc=$?
+is "a kit-1 devcontainer.json (comments, no GENERATED line) → the :$MAJOR render committed and pushed, no compare, no major skip" "$rc $(grep -c 'compare/' "$T/curl.log") $(pushed "$U5" | cut -c1-13) $(git -C "$U5" show HEAD:.devcontainer/devcontainer.json | grep -c "codespace/stoily:$MAJOR\"")" "0 0 chore: render 1"
+# the compare error says how to recover
+U6="$T/upd6"; urepo "$U6" "$T/d-b.json" e2; node "$RJ" --source "$SHA_C" "$tpl" "$U6/.devcontainer/stoily.json" "$U6/.devcontainer/devcontainer.json"
+cmpmode http:404; out="$(UDIR="$U6" USHA="$SHA_C" upd 0)"; rc=$?
+has "a failed compare (the old commit gone) → the error says how to recover" "$out" "if stoilyhq rewrote history, delete the @<sha> from line 1 of .devcontainer/devcontainer.json, commit it, and Run workflow"
+is "…red, nothing pushed" "$([ "$rc" != 0 ] && echo red) $(pushed "$U6")" "red base"
+# a HIGHER Feature major (the template moved :MAJOR → :NEXT, a newer stoilyhq commit): the updater takes it
+U7="$T/upd7"; printf '{"org":"%s","owner":"m1"}' "$ORG" > "$T/m1.json"; node "$RJ" --source "$SHA_B" "$tpl" "$T/m1.json" "$T/m-b.json"
+urepo "$U7" "$T/m-b.json" m1; node "$RJ" --source "$SHA_C" "$T/tpl3.json" "$U7/.devcontainer/stoily.json" "$U7/.devcontainer/devcontainer.json"
+cmpmode ok '{"status":"behind"}'; out="$(UDIR="$U7" USHA="$SHA_C" upd 404)"; rc=$?
+is "a HIGHER Feature major (:$MAJOR → :$NEXT) not on GHCR yet (404) → a notice, exit 0, nothing pushed" "$rc $(grep -c "::notice::ghcr.io/stoilyhq/codespace/stoily:$NEXT is not published (yet)" <<<"$out") $(pushed "$U7")" "0 1 base"
+out="$(UDIR="$U7" USHA="$SHA_C" upd 0)"; rc=$?
+is "a HIGHER Feature major than the committed file's (:$MAJOR → :$NEXT), a newer commit → committed and pushed" "$rc $(pushed "$U7" | cut -c1-13) $(git -C "$U7" show HEAD:.devcontainer/devcontainer.json | grep -c "codespace/stoily:$NEXT\"")" "0 chore: render 1"
+has "…after the GHCR check of :$NEXT" "$(cat "$T/curl.log")" "https://ghcr.io/v2/stoilyhq/codespace/stoily/manifests/$NEXT"
+echo
+echo "test/run: $pass passed, $fail failed"
+[ "$fail" = 0 ]

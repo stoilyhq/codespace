@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# This repo is PUBLIC: no credential, no store id, no internal host, no client org. `bash test/public-tree`
+# (CI runs it on every push and PR). Allowed: the placeholder YOUR-ORG, the made-up ids in test/run,
+# api.stoily.com/mcp, cdn.stoily.com (Stoily's public media CDN: every storefront page links it; site-check
+# reads a store's images there), the Feature's own ghcr.io address, and the public hosts the kit installs from.
+set -uo pipefail
+cd "$(dirname "$0")/.."
+fail=0
+deny() { # deny <what> <ERE> [<allowed ERE>]
+  local hits
+  hits="$(git ls-files -z | xargs -0 grep -nIE -- "$2" 2>/dev/null | grep -vE "^test/public-tree:" | { if [ -n "${3:-}" ]; then grep -vE -- "$3"; else cat; fi; })"
+  if [ -n "$hits" ]; then echo "❌ $1:"; sed 's/^/   /' <<<"$hits"; fail=1; else echo "✅ no $1"; fi
+}
+deny "store id (UUID)" '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}' '^test/run:.*0190(aaaa|bbbb|cccc)-|00000000-0000-7000-8000-000000000000'
+deny "store host on a Stoily zone" '[A-Za-z0-9-]+\.(stoily\.(store|app)|storeoncloud\.com)' '`mytest\.stoily\.store`'
+deny "Stoily host other than api.stoily.com / cdn.stoily.com" '[A-Za-z0-9.-]+\.stoily\.com' '(^|[^A-Za-z0-9.-])(api|cdn)\.stoily\.com'
+deny "GitHub owner other than stoilyhq / devcontainers / the placeholder" '(github\.com[/:]|ghcr\.io/)[A-Za-z0-9-]+' '(github\.com[/:]|ghcr\.io/)(stoilyhq|devcontainers|actions|organizations|cli|openai|someone)\b|github\.com/\$|github\.com/\{|github\.com/<|cli\.github\.com/packages|ghcr\.io/token\?scope=repository:stoilyhq/|ghcr\.io/v2/stoilyhq/|api\.github\.com/repos/stoilyhq/'
+deny "Codespaces grant for a real org (only the YOUR-ORG placeholder)" '"[A-Za-z0-9-]+/\*"[[:space:]]*:' '"YOUR-ORG/\*"'
+deny "credential-looking string" '(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)'
+deny "credential helper or token in a git URL" '(credential\.helper|https://[^/@ ]+:[^/@ ]+@)'
+deny "Claude Code install" '(npm (i|install)[^#]*@anthropic-ai/claude-code)'
+echo
+[ "$fail" = 0 ] && echo "public-tree: clean" || echo "public-tree: fix the ❌ lines above"
+exit "$fail"

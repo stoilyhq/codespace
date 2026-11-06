@@ -1,0 +1,20 @@
+name: release
+# The release gate of the starter template. Orgs' updaters (.github/workflows/stoily-update.yml in each
+# org's copy) render the template of the latest SUCCESSFUL push-to-main run of THIS workflow (its
+# head_sha), asking for it by this file name: so this file keeps its name, runs on every push to main,
+# and has one real job that runs the tests (a run whose jobs were all skipped is not a release).
+# A template change reaches the orgs only once its tests passed here, and their updater still waits
+# until the Feature version the template names is on GHCR. The Feature itself is built elsewhere.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  test:
+    if: github.repository == 'stoilyhq/codespace'   # never in an org's copy (Use this template copies .github/)
+    uses: ./.github/workflows/test.yml
