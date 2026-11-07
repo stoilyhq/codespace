@@ -10,7 +10,7 @@ This file is the format; the kit's validator checks it (`save --design` runs it)
  ├─ README.md            optional, ignored by readers
  ├─ .gitattributes       recommended: "* -text" (bytes stay exact)
  └─ <id>/                one directory per design
-    ├─ design.json       required  the design's card (7 keys)
+    ├─ design.json       required  the design's card (7 keys + optional browse)
     ├─ content.html      required  the design as a page
     ├─ kit.json          required  the design kit: CSS + slot-marked sections
     ├─ cover.jpg         optional  preview image
@@ -35,7 +35,7 @@ The design id: `^[a-z0-9-]{1,40}$` (lowercase letters, digits, `-`; no dot, slas
 must equal `design.json`'s `id`. A name you choose for a design saved from a page (`save --design`)
 follows the same rule.
 
-## `design.json` — exactly these 7 keys
+## `design.json` — these 7 keys, plus an optional `browse`
 
 | Key | Type | Meaning |
 |---|---|---|
@@ -46,9 +46,29 @@ follows the same rule.
 | `tags` | array of strings | free-form style / industry tags |
 | `cover` | `"cover.jpg"` or `null` | `null` when there is no `cover.jpg` |
 | `slots` | object | a summary of `kit.json`: `{ total, byKind: {button, heading, image, text}, sections: [{key, label, items, slots}] }` — descriptive only |
+| `browse` | object, **optional** | facts for browsing the gallery (below); a design without it is valid |
 
 No other key. A design never carries the prompt or brief that made it, an account, store or owner
 id, a source URL of private material, customer data or a credential.
+
+### `browse` — optional browsing facts
+
+Every key is optional and no other key is allowed. Lengths count characters (Unicode code points).
+The vocabulary is open: any value within the bounds is valid. Exporters write all 10 keys (an unknown
+string as `null`, an unknown list as `[]`).
+
+| Key | Type | Bound |
+|---|---|---|
+| `description` | string or `null` | ≤ 1000 characters |
+| `category` | string or `null` | ≤ 60 |
+| `pageType` | string or `null` | ≤ 60 |
+| `style` | string or `null` | ≤ 60 |
+| `market` | array of strings | ≤ 8 items, each ≤ 40 |
+| `locale` | array of strings | ≤ 4 items, each ≤ 40 |
+| `industry` | array of strings | ≤ 6 items, each ≤ 40 |
+| `aesthetic` | array of strings | ≤ 4 items, each ≤ 40 |
+| `density` | string or `null` | ≤ 40 |
+| `palette` | string or `null` | ≤ 40 |
 
 ## `kit.json` — the design kit (StoredPack v1)
 
