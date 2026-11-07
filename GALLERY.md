@@ -54,8 +54,9 @@ id, a source URL of private material, customer data or a credential.
 ### `browse` — optional browsing facts
 
 Every key is optional and no other key is allowed. Lengths count characters (Unicode code points).
-The vocabulary is open: any value within the bounds is valid. Exporters write all 10 keys (an unknown
-string as `null`, an unknown list as `[]`).
+The vocabulary is open: any value within the bounds is valid. A list is always an array: `null` is
+refused for a list key (omit the key instead). The storeXstore gallery exporter writes all 10 keys (an
+unknown string as `null`, an unknown list as `[]`); `save design` in the kit writes no `browse` at all.
 
 | Key | Type | Bound |
 |---|---|---|
