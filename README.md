@@ -363,8 +363,8 @@ directory per design). `sync` clones it into `<workbench>/gallery`; Codex reads 
 tools, because Stoily itself never reads GitHub. Ask Codex:
 
 - **"list designs"** — the gallery's designs (title, tags).
-- **"use design `<name>`"** — a new page from that design, rebuilt from Stoily primitives (layout only;
-  Stoily's design catalogue is empty, so the design's own style is not applied — Codex says so).
+- **"use design `<name>`"** — a new page from that design, rebuilt from Stoily primitives (layout only:
+  the design's own style is not applied — Codex says so).
 - **"save design `<name>`"** — writes the current page in the gallery format to `stoily/designs/<name>/`;
   then YOU run `save --design <name>` to validate it and push it to the gallery repo.
 
@@ -409,7 +409,7 @@ again, with ALL its stores ticked — or sign in once more and tick "All my stor
 
 | You want | Ask Codex | It uses |
 |---|---|---|
-| a new page | "build a FAQ page with 6 questions" | `create_page` + `apply_page_changes` (primitives; Stoily's design catalogue is empty, so `build_page_from_design` only when you ask for a catalogue design) |
+| a new page | "build a FAQ page with 6 questions" | `create_page` + `apply_page_changes` (primitives; Stoily's design catalogue is retired — `list_designs`, `get_design_slots` and `build_page_from_design` are kept for compatibility only and answer empty) |
 | a whole store from one ask | `new-client <name> --pending`, then `go -b demo-store <name>` (or your org's own brief) | research (web search) → `create_store` → catalog → `photos` → `logo` → `create_image_upload` + `upload-images` → theme → settings → pages → menus → `publish_all_drafts` (asked; a pre-launch store only) → `site-check <host>` |
 | a page cloned from a website | run `fetch-site <url>` first, then "rebuild source/… as a draft page" | `list_verified_domains`, then `create_page` + `apply_page_changes` |
 | change what exists | "make the hero headline shorter", "brand colour #0a7", "add FAQ to the footer menu", "footer copyright line" | `read_page` → `apply_page_changes`, `set_theme_tokens`, `set_menu`, `set_chrome`, `set_page_meta`; the browser title is `set_store_config` `design/head/default_title` |

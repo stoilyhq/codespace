@@ -18,15 +18,15 @@ ONLY the test store, so even a misbehaving Codex cannot reach a client. Below, `
 and `<host>` its domain (e.g. `mytest.stoily.store`). Pages, blocks, theme, menus, header/footer and
 page SEO land as DRAFTS; the LIVE writes are store settings and language, catalog, product images,
 the logo, creating a store and `publish_all_drafts` — each asks first. Nothing else goes live unless
-you press Publish (don't — see Cleanup). The exceptions: T7p, and T14, which builds and publishes a
-throwaway store Codex creates itself.
+you press Publish (don't — see Cleanup). The exception: T14, which builds and publishes a throwaway
+store Codex creates itself.
 
 ```
  0 Setup          T0 T1               before every track
  1 Login          T2 T3 (+T3s)        ChatGPT + Stoily, once,
                                       in ~/.codex
- 2 Design quality T7 T8 T9 T10 T11    primitives (catalogue
-                  T13 (+T7p) T14      empty), one fresh store
+ 2 Design quality T7 T8 T9 T10 T11    primitives, one fresh
+                  T13 T14             store
  3 Tenant setup   T4 T5 T6 T12 S7     client repo, sync, save
  4 Lock           S1–S6 S8 S9         what must be refused
 ```
@@ -75,14 +75,14 @@ which T4–T5 create.
 
 **One FRESH test store per run:** create a new store in Stoily admin for this run and bind
 `clients/test-design` to it (T4–T5) — never a client's store, never one an earlier run used (an old
-draft or theme hides faults). A store takes at most 50 new pages per day. Designs come from
-Stoily's design catalogue, which is EMPTY today: T7 and T7p are **N/A while the catalogue is empty**
-(`list_designs` missing or empty) — mark them N/A, not ❌.
+draft or theme hides faults). A store takes at most 50 new pages per day. Every page is built from
+Stoily primitives: the design catalogue is retired, and its tools (`list_designs`,
+`get_design_slots`, `build_page_from_design`) are kept for compatibility only and answer empty —
+Codex must not use them.
 
 | ID | Ask Codex | Pass when | Status |
 |---|---|---|---|
-| T7 create from a design | **"Make a new page 'Test About' from one of the designs. Tell me which design you picked."** | it calls `get_design_rules`, then `list_designs` → `get_design_slots` → `build_page_from_design` (with a fresh `idempotencyKey`). In Stoily → Content → Pages, **Test About** exists, hidden, with a draft; PageBuilder opens it and every block is editable; no `html` (raw HTML) node; exactly ONE h1 on the page; NO `sample` text from `get_design_slots` is left on the page; every section of the design that Codex kept is filled | never run in a Codespace |
-| T7p publish walls (optional, after T11) | Only on this throwaway store: Stoily admin → "Review AI changes" → **Publish all** (Test About together with the T11 theme draft) | the theme row reports `base-moved` (the design's style joined the theme when the page published); "Publish anyway" on that row publishes the theme; the storefront shows Test About in the design's style | never run in a Codespace |
+| T7 create from primitives | **"Make a new page 'Test About' with a hero, a short story section and a call to action."** | it calls `get_design_rules`, then `create_page` + `apply_page_changes` (primitives); it calls none of the retired catalogue tools. In Stoily → Content → Pages, **Test About** exists, hidden, with a draft; PageBuilder opens it and every block is editable; no `html` (raw HTML) node; exactly ONE h1 on the page; every section is filled with real copy, no placeholder text | never run in a Codespace |
 | T8 create from scratch | **"Build a page 'Test FAQ' with three questions and answers about delivery."** | `create_page` + `apply_page_changes`; the page opens in PageBuilder, editable, no raw HTML block | never run in a Codespace |
 | T9 clone (owned site) | In the TERMINAL (Ctrl-b c for a new window, or exit codex): `fetch-site https://<host>/ --images`. Back in codex: **"Rebuild source/<host>/home/page.html as a new draft page 'Test Clone'. Use at most one small image."** (use the folder fetch-site printed — a www redirect changes it) | it calls `list_verified_domains` first and says `<host>` IS listed; the draft carries the page's own words; at most one `upload_image`; the image URL in the page is a Stoily URL, not `<host>` | never run in a Codespace |
 | T10 clone (other site) | Terminal: `fetch-site https://example.com/`. Codex: **"Rebuild source/example.com/home/page.html as a draft page 'Test Other'."** | it says example.com is NOT a verified domain and takes layout/style only; the draft does NOT contain example.com's sentence "This domain is for use in…" | never run in a Codespace |

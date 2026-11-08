@@ -99,9 +99,11 @@ Starts with the design's canvas document in a JSON script element, optionally fo
 page rendered as static HTML:
 
 ```
-<script type="application/json" data-soc-canvas>{"schema":"…/canvas@1","body":[ … ],"meta":{"title":"…"}}</script>
+<script type="application/json" data-pagebuilder>{"schema":"…/pagebuilder@1","body":[ … ],"meta":{"title":"…"}}</script>
 <section>…</section>
 ```
+
+Older files with `data-soc-canvas` (schema `…/canvas@1`) still load.
 
 Readers treat it as opaque text: non-empty, well-formed UTF-8. It may contain an `html` node with the
 design's `<style>`; that is for the platform the design came from. **Codex never sends an `html` node
@@ -132,14 +134,15 @@ The Stoily MCP never reads GitHub: Codex reads the local files and drives Stoily
 - **use design `<name>`** — Codex rebuilds the layout with `create_page` + `apply_page_changes` from
   Stoily primitives (`pagebuilder-*` classes, theme tokens), following the kit's section order and slot kinds,
   every slot filled with the client's own copy (the kit's `sample` text is a guide, never copied), and
-  says the design's own style could not be applied: Stoily's design catalogue is empty, so
-  `build_page_from_design` is used only when you ask for a catalogue design by name.
+  says the design's own style could not be applied. Stoily's design catalogue is retired: its tools
+  (`list_designs`, `get_design_slots`, `build_page_from_design`) are kept for compatibility only and
+  answer empty, so Codex never uses them.
 - **No CC BY-SA image in a gallery entry.** A gallery is copied into other orgs' stores; a ShareAlike
   photo (fine on one store, credited from its `sources.json`) carries its licence along. A design's
   images are placeholders or CC0 / public domain only.
 - **Not possible today:** building a page from a design that exists only as local files *with its
-  style*. Stoily's connector builds styled pages only from catalogue designs; an inline design build
-  would need a new Stoily API tool.
+  style*. Stoily's tools build pages from primitives only; a styled build from a design would need a
+  new Stoily API tool.
 
 ## Mirroring a private master gallery
 
