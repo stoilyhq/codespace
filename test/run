@@ -121,7 +121,7 @@ is "…the string keeps its //" "$(rj "$RD/out3.json" 'console.log(j.name)')" "a
 is "…any other grant is dropped: only <org>/*" "$(rj "$RD/out3.json" 'console.log(Object.keys(j.customizations.codespaces.repositories).join(" "))')" "$ORG/*"
 is "…the template's own option + other Feature + vscode kept, org set" "$(rj "$RD/out3.json" 'const f=j.features["ghcr.io/stoilyhq/codespace/stoily:2"];console.log(f.codexVersion+" "+f.org+" "+Object.keys(j.features).length+" "+j.customizations.vscode.x)')" "1.2.3 $ORG 2 1"
 cp "$RD/out.json" "$RD/keep.json"
-for bad in '"auto":"off"' '"auto":"On"' '"auto":"true"' '"auto":"1"' '"auto":" on"' '"auto":true' '"constructor":"x"' '"__proto__":"x"' '"toString":"x"' '"org":"a.b"' '"org":"YOUR-ORG"' '"org":"your-org"' '"org":""' '"maxHours":"six"' '"owner":"a b"' '"clientPrefix":""' '"clientPrefix":"Client-"' '"galleryRepo":"../x"' '"galleryRepo":"a/b/c"' '"extra":"x"' '"org":7'; do
+for bad in '"auto":"On"' '"auto":"Off"' '"auto":" off"' '"auto":"true"' '"auto":"1"' '"auto":" on"' '"auto":true' '"constructor":"x"' '"__proto__":"x"' '"toString":"x"' '"org":"a.b"' '"org":"YOUR-ORG"' '"org":"your-org"' '"org":""' '"maxHours":"six"' '"owner":"a b"' '"clientPrefix":""' '"clientPrefix":"Client-"' '"galleryRepo":"../x"' '"galleryRepo":"a/b/c"' '"extra":"x"' '"org":7'; do
   case "$bad" in '"org"'*) body="{$bad}" ;; *) body="{\"org\":\"$ORG\",$bad}" ;; esac
   printf '%s\n' "$body" > "$RD/bad.json"
   out="$(render "$tpl" "$RD/bad.json" "$RD/out.json")"; rc=$?
@@ -133,16 +133,22 @@ has "…YOUR-ORG says why" "$(printf '{"org":"YOUR-ORG"}\n' > "$RD/bad.json"; re
 printf '{"org":"%s"}\n' "$ORG" > "$RD/min.json"
 is "stoily.json with only org → the defaults for the rest" "$(render "$tpl" "$RD/min.json" "$RD/min-out.json" >/dev/null; rj "$RD/min-out.json" "console.log(JSON.stringify(j.features['ghcr.io/stoilyhq/codespace/stoily:$MAJOR']))")" "{\"org\":\"$ORG\",\"owner\":\"\",\"maxHours\":\"\",\"clientPrefix\":\"client-\",\"galleryRepo\":\"\"}"
 # auto: "" or absent → the render is byte-identical to one without the key (no "auto" in the Feature at
-# all: a kit before 3.2 does not declare it and would fail the build); "on" → exactly one line more.
-printf '{"org":"%s","owner":"boss","maxHours":"6","clientPrefix":"client-","galleryRepo":"designs","auto":""}\n' "$ORG" > "$RD/auto-off.json"
+# all: the kit's default, ON from kit 3.9; a kit before 3.2 does not declare it and would fail the build);
+# "on" or "off" → exactly one line more ("off" = the opt-out, needs kit 3.9 or later).
+printf '{"org":"%s","owner":"boss","maxHours":"6","clientPrefix":"client-","galleryRepo":"designs","auto":""}\n' "$ORG" > "$RD/auto-empty.json"
 printf '{"org":"%s","owner":"boss","maxHours":"6","clientPrefix":"client-","galleryRepo":"designs","auto":"on"}\n' "$ORG" > "$RD/auto-on.json"
-render "$tpl" "$RD/stoily.json" "$RD/auto-none-out.json" >/dev/null; render "$tpl" "$RD/auto-off.json" "$RD/auto-off-out.json" >/dev/null; render "$tpl" "$RD/auto-on.json" "$RD/auto-on-out.json" >/dev/null
-is "auto \"\" → byte-identical to the render without auto" "$(cmp -s "$RD/auto-none-out.json" "$RD/auto-off-out.json" && echo same)" same
-is "…no auto key in the Feature (absent or \"\")" "$(grep -c '"auto"' "$RD/auto-none-out.json" "$RD/auto-off-out.json" "$RD/min-out.json" | cut -d: -f2 | tr '\n' ' ')" "0 0 0 "
+printf '{"org":"%s","owner":"boss","maxHours":"6","clientPrefix":"client-","galleryRepo":"designs","auto":"off"}\n' "$ORG" > "$RD/auto-off.json"
+render "$tpl" "$RD/stoily.json" "$RD/auto-none-out.json" >/dev/null; render "$tpl" "$RD/auto-empty.json" "$RD/auto-empty-out.json" >/dev/null; render "$tpl" "$RD/auto-on.json" "$RD/auto-on-out.json" >/dev/null; render "$tpl" "$RD/auto-off.json" "$RD/auto-off-out.json" >/dev/null; render "$tpl" "$RD/auto-off.json" "$RD/auto-off-out2.json" >/dev/null
+is "auto \"\" (the default, ON) → byte-identical to the render without auto" "$(cmp -s "$RD/auto-none-out.json" "$RD/auto-empty-out.json" && echo same)" same
+is "…no auto key in the Feature (absent or \"\")" "$(grep -c '"auto"' "$RD/auto-none-out.json" "$RD/auto-empty-out.json" "$RD/min-out.json" | cut -d: -f2 | tr '\n' ' ')" "0 0 0 "
 is "auto \"on\" → the Feature's options gain \"auto\": \"on\" (last)" "$(rj "$RD/auto-on-out.json" "console.log(JSON.stringify(j.features['ghcr.io/stoilyhq/codespace/stoily:$MAJOR']))")" "{\"org\":\"$ORG\",\"owner\":\"boss\",\"maxHours\":\"6\",\"clientPrefix\":\"client-\",\"galleryRepo\":\"designs\",\"auto\":\"on\"}"
 is "…and nothing else changes (the diff: one line added, the comma before it)" "$(diff "$RD/auto-none-out.json" "$RD/auto-on-out.json" | grep -E '^[<>]' | tr -d ' ' | tr '\n' ' ')" '<"galleryRepo":"designs" >"galleryRepo":"designs", >"auto":"on" '
+is "auto \"off\" → the Feature's options gain \"auto\": \"off\" (last)" "$(rj "$RD/auto-off-out.json" "console.log(JSON.stringify(j.features['ghcr.io/stoilyhq/codespace/stoily:$MAJOR']))")" "{\"org\":\"$ORG\",\"owner\":\"boss\",\"maxHours\":\"6\",\"clientPrefix\":\"client-\",\"galleryRepo\":\"designs\",\"auto\":\"off\"}"
+is "…and nothing else changes (the diff: one line added, the comma before it)" "$(diff "$RD/auto-none-out.json" "$RD/auto-off-out.json" | grep -E '^[<>]' | tr -d ' ' | tr '\n' ' ')" '<"galleryRepo":"designs" >"galleryRepo":"designs", >"auto":"off" '
+is "…rendered twice → byte-identical" "$(cmp -s "$RD/auto-off-out.json" "$RD/auto-off-out2.json" && echo same)" same
 printf '{"features":{"ghcr.io/stoilyhq/codespace/stoily:%s":{"auto":"on","codexVersion":"1"}}}\n' "$MAJOR" > "$RD/tpl-auto.json"
-is "a template that carries auto → stoily.json decides (\"\" drops it, the template's other options kept)" "$(render "$RD/tpl-auto.json" "$RD/auto-off.json" "$RD/tpl-auto-out.json" >/dev/null; rj "$RD/tpl-auto-out.json" "const f=j.features['ghcr.io/stoilyhq/codespace/stoily:$MAJOR'];console.log(('auto' in f)+' '+f.codexVersion)")" "false 1"
+is "a template that carries auto → stoily.json decides (\"\" drops it, the template's other options kept)" "$(render "$RD/tpl-auto.json" "$RD/auto-empty.json" "$RD/tpl-auto-out.json" >/dev/null; rj "$RD/tpl-auto-out.json" "const f=j.features['ghcr.io/stoilyhq/codespace/stoily:$MAJOR'];console.log(('auto' in f)+' '+f.codexVersion)")" "false 1"
+is "…and \"off\" over a template's auto → \"off\" (the template's other options kept)" "$(render "$RD/tpl-auto.json" "$RD/auto-off.json" "$RD/tpl-auto-off-out.json" >/dev/null; rj "$RD/tpl-auto-off-out.json" "const f=j.features['ghcr.io/stoilyhq/codespace/stoily:$MAJOR'];console.log(f.auto+' '+f.codexVersion)")" "off 1"
 printf '{"name":"x","features":{"ghcr.io/devcontainers/features/node:1":{}}}\n' > "$RD/nofeat.json"
 for k in 'ghcr.io/stoilyhq/codespace/stoily@sha256:0123' 'ghcr.io/stoilyhq/codespace/stoily'; do
   printf '{"features":{"ghcr.io/stoilyhq/codespace/stoily:2":{},"%s":{}}}\n' "$k" > "$RD/two.json"; printf '{"features":{"%s":{}}}\n' "$k" > "$RD/one.json"

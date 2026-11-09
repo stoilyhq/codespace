@@ -3,8 +3,9 @@
 Build and manage [Stoily](https://stoily.com) stores with **Codex** and the **Stoily MCP**, from a
 GitHub Codespace. One Codespace serves many client stores: each client is its own repo, cloned into
 `clients/<name>/`, and Codex started in that folder works on that client's store only. Every design
-change lands as a DRAFT the merchant publishes; the few LIVE writes (catalog, logo, store settings)
-ask you before every call.
+change lands as a DRAFT the merchant publishes. The few LIVE writes (catalog, logo, store settings)
+ask you before every call only with auto mode off: auto mode is on by default (see
+[Auto mode](#auto-mode-on-by-default)).
 
 This repo is **the starter**: a GitHub template repository. **Use this template** gives your org its
 own `<org>/codespace` repo (`.devcontainer/stoily.json` with your org's values, the `devcontainer.json`
@@ -44,8 +45,9 @@ current with nothing to copy (except, rarely, a new updater).
 start): its sandbox lets it WRITE files only inside the folder it was started in, its shell has no
 network (so on its own it cannot push, download or install), its web search reads only OpenAI's
 cached index (`web_search = "cached"`, never a live fetch from the Codespace), and only the Stoily
-tools for design, catalog, store settings and creating a store are enabled — creating a store,
-every catalog/settings write and publishing ask you first; no domains, DNS or members. The only MCP
+tools for design, catalog, store settings and creating a store are enabled — creating a store
+always asks you first; every catalog/settings write and publishing ask too when auto mode is off
+(`"auto": "off"`); no domains, DNS or members. The only MCP
 server is `https://api.stoily.com/mcp`. Pushing to GitHub is `save` (commits only `stoily/` and
 `AGENTS.md` to the client's repo); downloading a page is `fetch-site`; photos, uploads and the
 storefront check are `photos`, `upload-images` and `site-check`: programs YOU run (or approve when
@@ -86,7 +88,7 @@ command line names (and this store's own folder on Stoily's media CDN, where its
 - **Codex never starts in the workbench itself** (it holds every client folder): with no client yet
   (`go` or `work` with no client) it starts in an empty `~/stoily-lobby`.
   Do not start `codex` by hand in the workbench folder.
-- **Auto mode (`"auto": "on"`) removes the human check.** Everything above about reading the command
+- **Auto mode (on by default; `"auto": "off"` turns it off) removes the human check.** Everything above about reading the command
   line before you approve stops applying to the kit's programs: Codex asks `go` for them instead of
   you, and `go` runs them (`save`, `photos`, `upload-images`, `site-check`, `fetch-site` in a client
   folder; only `new-client` in the lobby) with their network and the Codespace's GitHub access, and
@@ -109,13 +111,13 @@ agency), each person's own Stoily role on each store, and GitHub's repo permissi
 
 | Program | Does |
 |---|---|
-| `go` | the whole first run in order (pull → setup → client → check → logins → check → Codex); stops at the first ❌. Runs by itself in a new Codespace's first terminal |
+| `go` | the whole first run in order (pull → setup → client → check → logins → check → Codex); stops at the first ❌. Runs by itself in a new Codespace's first terminal; with no client yet it opens the lobby, where you say "set up a client" |
 | `check` | prove the lock (no AI, no sign-in) |
 | `work [<client>]` | one tmux session `stoily`: a window per client (or just that one) |
 | `sync` | clone / pull every client: each `<org>/<clientPrefix>*` repo this Codespace can see |
 | `save "<what>"` | commit `stoily/` + `AGENTS.md`, push the client's repo |
 | `save --design <name>` | publish the design Codex wrote to `stoily/designs/<name>/` into the org's gallery repo (validated, only that directory) |
-| `new-client <name> <storeId> <host>` | create `<org>/client-<name>` (the `clientPrefix` option), bound to one store |
+| `new-client <name> <storeId> <host>` | create `<org>/client-<name>` (the `clientPrefix` option), bound to one store. With auto mode on, Codex asks `go` to run it when you say "set up a client"; type it yourself only with `"auto": "off"` |
 | `new-client <name> --pending` | the same, with no store yet: Codex creates it (`create_store`, asked first) and writes its id into `AGENTS.md` |
 | `fetch-site <url> [--images]` | download a page for Codex to rebuild → `source/` |
 | `photos fetch <plan.json>` / `photos finish <picks.json>` | licence-safe photos from Wikimedia Commons: previews + contact sheets in `source/photos/`, then crops in `stoily/assets/` + credits in `stoily/assets/sources.json` |
@@ -150,7 +152,8 @@ account GitHub lists only its PUBLIC repos, so a private client repo there is fo
 1. github.com/stoilyhq/codespace → **Use this template → Create a new repository**: owner **`<org>`**,
    name **`codespace`**, **Private**.
 2. In the new repo open **`.devcontainer/stoily.json`** → ✏️ edit: set `"org"` to your org (replace
-   `YOUR-ORG`); optionally `"owner"` (your GitHub login) and the other values (below). **Commit changes.**
+   `YOUR-ORG`). That is the only edit a new org needs; the other values (below) are optional and can
+   stay as they are. **Commit changes.**
 3. The commit starts the **updater** (Actions → `stoily-update`, ~30 s): it renders
    `.devcontainer/devcontainer.json` from the stoilyhq template and your `stoily.json` (the `<org>/*`
    Codespaces grant and the Feature's options) and commits it. Wait for that commit. If it did not
@@ -158,14 +161,21 @@ account GitHub lists only its PUBLIC repos, so a private client repo there is fo
    this repo).
 4. **Code → Codespaces → Create codespace**. Approve the repository access it asks for (write access to
    `<org>/*`, so it can push client repos).
-5. Nothing to type: the Codespace's first terminal runs `go` by itself (setup → `check` → sign-ins →
-   `check` → Codex). Follow it: it signs you in to ChatGPT (device code) and to Stoily (tick **"All my
-   stores, including future ones"**), checks the lock, then opens Codex. Once that last `check` is all
-   ✅, later terminals ask `work?` instead; after a **Rebuild container** (which resets the home folder
-   and its sign-ins) the first terminal runs `go` again. You can always run `go` yourself. Without a client
-   yet it opens in an empty lobby folder, where Codex may only `list_stores`: that gives the store id for
-   `new-client <name> <storeId> <host>`, which creates `<org>/client-<name>`; every Codespace of the org
-   picks it up at its next `sync`.
+5. Nothing to type in the terminal. The first terminal signs you in to ChatGPT (it shows a code to
+   enter on a web page) and to Stoily (tick **"All my stores, including future ones"**), checks that
+   everything is locked down, then opens Codex. This works the same for any GitHub account, the
+   `owner` or not.
+   - No client yet? Type **"set up a client"** in Codex. It lists your Stoily stores by number: answer
+     with the number of the store, then give the client a name (Codex suggests one). Codex creates the
+     client's private repo `<org>/client-<name>`. If GitHub does not let the Codespace create it, Codex
+     gives you a GitHub link: open it, click **Create repository**, then type "done".
+   - Codex then opens that client. Say what you want built, in your own words: Codex writes a plan
+     (the intake), shows it to you, and builds once you approve it.
+   - Every Codespace of the org picks the new client up at its next `sync`. Later, type "continue
+     `<name>`" to go back to a client.
+
+   After a **Rebuild container** (which resets the home folder and its sign-ins) the first terminal
+   signs you in again. You can always run `go` yourself.
 
 Your copy also carries this repo's `test/` and docs: unused in your Codespace, and the test + release
 workflows are switched off outside `stoilyhq/codespace`.
@@ -183,7 +193,7 @@ options in `devcontainer.json` (never edit that file: the next render replaces i
 ```json
 {
   "org": "your-org",
-  "owner": "your-login",
+  "owner": "",
   "maxHours": "6",
   "clientPrefix": "client-",
   "galleryRepo": "",
@@ -195,35 +205,41 @@ options in `devcontainer.json` (never edit that file: the next render replaces i
 |---|---|---|
 | `org` | (required) | GitHub org of the client repos; the updater also writes the `<org>/*` Codespaces grant from it (`check` fails if the two ever differ). `YOUR-ORG` is refused. |
 | `clientPrefix` | `client-` | Client repos are `<org>/<clientPrefix><name>`: `sync` clones every such repo it can see; `save` and `fetch-site` work only in one. Never empty. |
-| `owner` | `""` | GitHub login whose Codespaces keep a plain shell (`work?`). Every other account's terminal runs `go --loop`: straight into Codex, saved and restarted on exit. Empty = everyone gets `work?`. |
+| `owner` | `""` | GitHub login whose terminals keep a shell (Codex opens there too; closing it leaves a shell or the `work?` prompt). Every other account's terminal is Codex only (`go --loop`): saved and reopened when it closes. Empty = everyone keeps a shell. Optional: nothing needs it set. |
 | `maxHours` | `""` | Soft daily cap (whole hours of Codex, UTC day) for `go --loop` terminals. Empty = none. |
 | `galleryRepo` | `""` | The org's design gallery ([GALLERY.md](GALLERY.md)), cloned into `<workbench>/gallery` by `sync` when it exists and this Codespace can read it (otherwise skipped without a word). Empty = `<org>/gallery`; a repo name in the org, or `owner/name`. |
-| `auto` | `""` | `"on"` = **auto mode** (needs kit 3.2 or later and the current `.github/stoily-render.js`): you type one sentence and Codex does the rest — no approval prompts (except `create_store`, which still asks; and only in the Codex `go` starts: a staff `--loop` terminal, a bare `codex` or a `work` window keep asking), no clarifying questions (it picks a default and writes each choice under "Choices" in `stoily/progress.md`), `go` runs the kit's programs it asks for, and `go` keeps the Codespace awake while Codex works. Only `""` (off) and `"on"` are accepted. Read [Auto mode](#auto-mode) and the auto paragraph in "What the lock does NOT do" first. |
+| `auto` | `""` | **Auto mode is on by default.** `""` (the default) or `"on"` = auto mode: you type one sentence and Codex does the rest — no approval prompts (except `create_store`, which still asks; and only in the Codex `go` starts, staff terminals included: a bare `codex` or a `work` window keep asking), no clarifying questions besides which store, the client's name and the intake's plan (otherwise it picks a default and writes each choice under "Choices" in `stoily/progress.md`), `go` runs the kit's programs it asks for, and `go` keeps the Codespace awake while Codex works. `"off"` = Codex asks before every LIVE write and every program (needs kit 3.9 or later AND this repo's current `.github/stoily-render.js` in your copy: an older one refuses `"off"`). Nothing else is accepted. Read [Auto mode](#auto-mode-on-by-default) and the auto paragraph in "What the lock does NOT do". |
 | `codexVersion` | `latest` | The `@openai/codex` npm version installed into the image (the Feature's default; not in `stoily.json`). |
 
 An invalid value fails the updater's run (nothing is committed; the run's log names the value); an
 invalid option that reaches the Codespace fails its build with the option's name. Fix it and rebuild.
 
-### Auto mode
+### Auto mode (on by default)
 
-With `"auto": "on"` in `stoily.json` (and the updater's commit in, then a new Codespace or a
-**Rebuild container**), the whole job is one sentence typed in the lobby — no terminal:
+Auto mode needs nothing in `stoily.json`: `"auto": ""` (or no `auto` line) means on. The whole job is
+said in Codex — no terminal:
 
 ```
- lobby Codex: "set up acme for <store>, build demo-store"
-   │ list_stores → the store's id and host
-   │ asks go: new-client acme <storeId> <host> -b demo-store
+ lobby Codex: "set up a client"
+   │ list_stores → your stores, numbered
+   │ you: "2"  → Codex: "name it acme?"  → you: "yes"
+   │ asks go: new-client acme <storeId> <host> -b intake
    ▼
  go ends the lobby Codex and starts Codex in clients/acme
-   with the demo-store brief: it builds, and asks go to
-   run photos, upload-images, site-check and save
+   with the intake: it asks what you want, writes a plan,
+   shows it, and builds after you approve (it asks go to
+   run photos, upload-images, site-check and save)
 ```
 
-- Type it in the lobby (the first terminal when the Codespace has no client yet): "set up `<name>`
-  for `<store>`", optionally ", build `<brief>`" (a prompt in `prompts/`). Codex finds the store,
-  creates and binds `<org>/client-<name>`, and the build starts by itself in that client's folder.
-- If the repo cannot be created (a personal account, or a token without that right), Codex relays
-  the link the program prints: create the empty private repo there, then say the sentence again.
+- Say it in the lobby (the Codex a terminal opens when no client is open yet): **"set up a client"**.
+  Codex lists your Stoily stores by number; pick one, confirm the client's name, and Codex creates
+  and binds `<org>/client-<name>`. Codex takes the store's id and address from that list: you never
+  type them. Then Codex opens the client: describe the site in your own words and approve the plan.
+  You can also say it all at once ("set up acme for `<store>`: a shop for handmade clocks") or name
+  a brief ("…, build demo-store", a prompt in `prompts/`).
+- If GitHub does not let the Codespace create the repo (any account, an org or a personal one), Codex
+  shows you a GitHub link: open it, click **Create repository**, then type "done" and Codex carries on.
+- A client already set up: "continue `<name>`".
 - Codex never asks: where something is not said, it picks the default and records each choice under
   "Choices" in `stoily/progress.md`. Read it afterwards.
 - What auto does NOT change: the sandbox (writes only in its folder, no shell network), no domains,
@@ -234,8 +250,11 @@ With `"auto": "on"` in `stoily.json` (and the updater's commit in, then a new Co
   you create it (or `gh codespace create --idle-timeout 4h`). Auto keeps the Codespace awake only
   while Codex is working (a session active in the last 30 minutes); after that it stops at its
   timeout as usual.
-- Your org's copy must carry this version of `.github/stoily-render.js` (the updater does not
-  update it): an older one refuses `auto` as an unknown key. Copy it from this repo if needed.
+- **Turning it off:** set `"auto": "off"` in `stoily.json`. Codex then asks before every LIVE write
+  and every program, and a new client is made in the terminal (`new-client`, see
+  [A new client store](#a-new-client-store)). Only this needs your org's copy of
+  `.github/stoily-render.js` to be this version (the updater does not update it; an older one refuses
+  `"off"`): copy it from this repo first.
 
 ### Updates and versions
 
@@ -376,20 +395,23 @@ GitHub Action in their own repo, not part of this kit.
 With "All my stores, including future ones" ticked at sign-in, a store you are added to later is
 on your connection at once — no new sign-in. A store whose owner removes you drops off at once.
 
-**A store Codex creates** (a demo, or a new shop you build from one ask): `new-client <name> --pending`,
-then `go -b <brief> <name>`. The folder says `STORE_ID: pending`; Codex's first live write is ONE
-`create_store` (it asks first, with the name, currency, locale and timezone), then it writes the new
-store's id and host into the folder's `AGENTS.md` and builds it. `go` never picks a pending client by
-itself: name it.
+**A store Codex creates** (a demo, or a new shop you build from one ask): say it in the lobby Codex —
+"set up `<name>` as a new store: `<what you want>`". The folder says `STORE_ID: pending`; Codex's
+first live write is ONE `create_store` (it asks first, with the name, currency, locale and timezone),
+then it writes the new store's id and host into the folder's `AGENTS.md` and builds it. With
+`"auto": "off"`, in a terminal: `new-client <name> --pending`, then `go -b <brief> <name>` (`go` never
+picks a pending client by itself: name it).
 
 **A store that exists:**
 
 1. The client invites your Stoily account as Editor in Stoily admin (Admin if you will manage its
    catalog) and you accept from the email — or you create the store in Stoily admin. Never ask a
    client for their password; there are no member tools.
-2. In a terminal: `codex exec "call list_stores"` → the new store id → `new-client <name> <storeId> <host>`.
-   It creates `<org>/client-<name>`; every Codespace of the org clones it at its next `sync`.
-   (`list_stores` shows 100 stores per page; ask it to follow `nextCursor` to see the rest.)
+2. In the lobby Codex: **"set up a client"** — it lists your stores by number (the new one included),
+   you pick it and name the client, and it creates `<org>/client-<name>`; every Codespace of the org
+   clones it at its next `sync`. (`list_stores` shows 100 stores per page; ask Codex for the next page
+   to see the rest.) With `"auto": "off"`, in a terminal: `codex exec "call list_stores"` → the new
+   store id → `new-client <name> <storeId> <host>`.
 
 **A client folder is bound to ONE store and host, forever.** `save` refuses a change to `STORE_ID`
 or `HOST` once a real store is committed (only `pending` → the new store, once), and `upload-images`
@@ -409,8 +431,8 @@ again, with ALL its stores ticked — or sign in once more and tick "All my stor
 
 | You want | Ask Codex | It uses |
 |---|---|---|
-| a new page | "build a FAQ page with 6 questions" | `create_page` + `apply_page_changes` (primitives; Stoily's design catalogue is empty, so `build_page_from_design` only when you ask for a catalogue design) |
-| a whole store from one ask | `new-client <name> --pending`, then `go -b demo-store <name>` (or your org's own brief) | research (web search) → `create_store` → catalog → `photos` → `logo` → `create_image_upload` + `upload-images` → theme → settings → pages → menus → `publish_all_drafts` (asked; a pre-launch store only) → `site-check <host>` |
+| a new page | "build a FAQ page with 6 questions" | `create_page` + `apply_page_changes` (primitives) |
+| a whole store from one ask | in the lobby: "set up a client" (or "set up `<name>` as a new store: `<what you want>`"), then describe the site — the intake writes a plan and builds after you approve; or name a brief ("build demo-store", or your org's own). Auto off: `new-client <name> --pending`, then `go -b intake <name>` | research (web search) → `create_store` → catalog → `photos` → `logo` → `create_image_upload` + `upload-images` → theme → settings → pages → menus → `publish_all_drafts` (asks only with auto off; a pre-launch store only) → `site-check <host>` |
 | a page cloned from a website | run `fetch-site <url>` first, then "rebuild source/… as a draft page" | `list_verified_domains`, then `create_page` + `apply_page_changes` |
 | change what exists | "make the hero headline shorter", "brand colour #0a7", "add FAQ to the footer menu", "footer copyright line" | `read_page` → `apply_page_changes`, `set_theme_tokens`, `set_menu`, `set_chrome`, `set_page_meta`; the browser title is `set_store_config` `design/head/default_title` |
 | undo before publish | "discard the draft of the About page" | `discard_draft` |
@@ -427,7 +449,8 @@ credited from `stoily/assets/sources.json`).
 
 ## Every day
 
-- New terminal → `work?` → `*` (every client) or a client's name → one tmux window per client.
+- New terminal → Codex opens (auto mode; "continue `<name>`" picks a client). Where terminals keep a
+  shell (the owner's, or everyone's when `owner` is empty), closing Codex leaves `work?` → `*` (every client) or a client's name → one tmux window per client.
   `Ctrl-b <n>` switches window, `Ctrl-b d` detaches, Enter at `work?` gives a plain shell.
 - In a client window: `codex` and ask. It snapshots before and after into `stoily/` and writes
   drafts. Then run `save "what changed"` (or approve Codex running it). Publish the drafts in
@@ -437,7 +460,8 @@ credited from `stoily/assets/sources.json`).
 - `sync` clones new client repos and pulls every client (another person or desktop may have pushed).
   When GitHub's list of the org's repos cannot be read it says so in one line and pulls the clients
   already cloned.
-- A brief: `go -b demo-store <client>` (the kit's example) or `go -b prompts/<brief>.md <client>` (yours).
+- A brief: in a client's Codex say "build demo-store" (the kit's example) or "build `<brief>`" (yours, in
+  `prompts/`). In a terminal: `go -b demo-store <client>` or `go -b prompts/<brief>.md <client>`.
 
 ## Known limits — read once
 
@@ -472,7 +496,7 @@ credited from `stoily/assets/sources.json`).
   while the Stoily login is still waiting, run `curl '<the URL>'` in ANOTHER terminal of
   the same Codespace (in tmux: `Ctrl-b c`), right away — the code works once. Or open
   the Codespace in VS Code desktop, which forwards localhost automatically.
-- **The LIVE writes always ask you first** (auto off; with `"auto": "on"` only `create_store` asks, in the Codex `go` starts) (`set_store_config`, `set_store_language`,
+- **The LIVE writes ask you first only with auto mode off** (`"auto": "off"`; with auto mode on, the default, only `create_store` asks, in the Codex `go` starts) (`set_store_config`, `set_store_language`,
   `create_category`, `upsert_product`, `set_product_image`, `set_logo`, `create_store`,
   `publish_all_drafts`), so under `codex exec` (nobody to answer) they
   never run; use interactive `codex` for them. `upsert_product` overwrites an existing SKU's price
@@ -488,8 +512,8 @@ credited from `stoily/assets/sources.json`).
 - **The Codespace stops at its idle timeout even with tmux running**, and a running Codex task stops
   with it. Create the Codespace with a 240-minute idle timeout (GitHub settings → Codespaces →
   Default idle timeout, up to 4 hours, BEFORE you create it: GitHub cannot change an existing
-  Codespace's timeout). With `"auto": "on"`, `go` keeps the Codespace awake only while Codex is
-  working; without it, nothing does. An org-wide idle policy needs a paid plan.
+  Codespace's timeout). With auto mode on (the default), `go` keeps the Codespace awake only while
+  Codex is working; with `"auto": "off"`, nothing does. An org-wide idle policy needs a paid plan.
 - **Every client of the org is in every Codespace of the org** (each `<org>/client-*` repo it can
   see). To keep clients apart, use separate orgs; a member's own GitHub permissions decide which client
   repos their Codespace can see and push.
@@ -510,17 +534,20 @@ credited from `stoily/assets/sources.json`).
 - Write access is GitHub's: org members read the workbench and write only their own client repos
   (org → People → the member → repository access). The Codespace grant in `.devcontainer/` never
   exceeds the member's own permission.
-- `go` opens Codex without a brief; `go -b prompts/<brief>.md <client>` hands one over.
+- `go` opens Codex without a brief; say "build `<brief>`" in a client's Codex to start one (in a
+  terminal: `go -b prompts/<brief>.md <client>`).
 - The template's `hostRequirements` asks for at least 2 cores / 8 GB: the smallest machine is offered
   first, but a member can still pick a bigger (dearer) one; only a paid-plan org policy on machine
   types restricts it.
 
 ## Staff terminals are Codex
 
-In a Codespace created by any GitHub account other than the Feature's `owner` option,
-every new terminal runs `go --loop`: pull, setup, check, the logins, the first client bound to a store
-(by name), then Codex. When Codex exits (Ctrl+C, a crash), the client folder is saved to GitHub
-(`save`) and Codex starts again; a ❌ waits for Enter and retries. Only one `go` runs per Codespace: a
+When the Feature's `owner` option names a GitHub login, in a Codespace created by any other account
+every new terminal runs `go --loop`: pull, setup, check, the logins, then Codex. With no client yet it
+signs in and opens the lobby just like the owner's terminal — no stop: say "set up a client" or
+"continue `<name>`". From then on Codex works in that client, and every time Codex exits (Ctrl+C, a
+crash) the client folder is saved to GitHub (`save`) and Codex opens again in the same client; a ❌
+waits for Enter and retries. For another client, close the terminal and open a new one. Only one `go` runs per Codespace: a
 second terminal is refused with a pointer to the running one (a kernel file lock, released when that
 Codex ends, crash included). VS Code can still open another
 terminal, so this is the default experience, not a wall: the locks that hold are the Codex sandbox and
