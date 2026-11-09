@@ -495,13 +495,13 @@ commits as that person too. Ask Codex in plain words:
   waits for your yes. A setting, price or product gets its old value back; a product or category
   that was new is switched off or hidden, never deleted; a page or block goes back as a DRAFT the
   merchant publishes; where there is no undo, Codex says so and why. A change whose old value the
-  kit could not read first has no automatic undo: Codex says so and asks what it should be. The undo
+  kit could not read first has no automatic undo: Codex answers: "I can't undo that change automatically — I didn't get its old value. Tell me what it should be and I'll set it (with your yes)." The undo
   is a new change, recorded like any other: the history is never rewritten.
 
 When two people change the same thing from two Codespaces, nothing is lost: the kit settles its own
 records and store values by itself (re-reading the values from Stoily), and for a file of your own
 `save` stops with one plain message: "Someone else changed `<file>` at the same time — say 'keep mine'
-or 'keep theirs'". Say which; Codex settles it.
+or 'keep theirs'". Say which: "keep mine" keeps your version, "keep theirs" takes the one on GitHub. Codex then runs `save --resolve mine` or `save --resolve theirs` (auto mode), or asks you to run it (`"auto": "off"`).
 
 ## Designs: the org's gallery
 
@@ -529,7 +529,7 @@ folder `clients/new-…` that stays in this Codespace); Codex's first live chang
 (it asks first, with the name, currency, locale and timezone). Once the store is made the kit links
 the folder to it by itself — writes its id, name and domain into the folder's `AGENTS.md`, creates
 `<org>/store-<storeId>` (or Codex gives you the GitHub link to create it) — and Codex builds it; the
-next `go` renames the folder to `clients/<storeId>`. With `"auto": "off"`, in a terminal:
+next `go` renames the folder to `clients/<storeId>`. If Codex closes before the new store is finished (a restart, a closed terminal), say "done" (or "continue `<name>`") in the lobby Codex: it reopens that `clients/new-…` folder and carries on from `stoily/progress.md`. If the store was already made, Codex reads it (`get_store`) and never creates a second one. With `"auto": "off"`, in a terminal:
 `new-client --pending`, then `go -b <brief> <the folder it printed>` (`go` never picks a pending
 folder by itself: name it).
 
