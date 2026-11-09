@@ -72,7 +72,8 @@ Codex's own settings (`~/.codex/config.toml`) are only defaults a person could c
 matter are also pinned by **`/etc/codex/requirements.toml`**, a file owned by root that Codex reads on
 every start and that a staff member cannot override from Codex (no `-c` flag, no edited
 `config.toml`). The kit installs it, the same for every org (no option changes it), and it holds
-exactly:
+exactly these 7 settings (the file also has a few `#` comment lines and blank lines, 14 lines in all;
+`check` proves it is byte-equal to the kit's own copy):
 
 ```toml
 allowed_approval_policies = ["on-request"]
@@ -95,8 +96,8 @@ The honest limits — this is a lock on Codex, not on the person at the keyboard
   edit or delete the file.
 - **A Rebuild with an edited `devcontainer.json`.** A person who can rebuild their Codespace from a
   changed `devcontainer.json` (one without the Feature) gets a Codespace without the kit and its file.
-- **The Codex version.** Codex older than 0.76 ignores the file; the kit installs a newer one (the
-  `codexVersion` option).
+- **The Codex version.** Codex older than 0.76 ignores the file; the kit installs 0.167.0 by default (the
+  `codexVersion` option), and a `codexVersion` below 0.167.0 fails the Codespace's build.
 - **`CODEX_HOME`.** Starting Codex with `CODEX_HOME` pointing elsewhere drops the kit's `config.toml`
   (its rules, its asks and its tool list); the file in `/etc/codex/` is meant to hold regardless
   ([TESTING.md](TESTING.md) K8 checks it).
@@ -271,7 +272,7 @@ options in `devcontainer.json` (never edit that file: the next render replaces i
 | `maxHours` | `""` | Soft daily cap (whole hours of Codex, UTC day) for `go --loop` terminals. Empty = none. |
 | `galleryRepo` | `""` | The org's design gallery ([GALLERY.md](GALLERY.md)), cloned into `<workbench>/gallery` by `sync` when it exists and this Codespace can read it (otherwise skipped without a word). Empty = `<org>/gallery`; a repo name in the org, or `owner/name`. |
 | `auto` | `""` | **Auto mode is on by default.** `""` (the default) or `"on"` = auto mode: you type one sentence and Codex does the rest — `go` runs the kit's programs it asks for, Codex asks no clarifying questions besides which store (and its card's yes), which waiting store and the intake's plan (otherwise it picks a default and writes each choice under "Choices" in `stoily/progress.md`), and `go` keeps the Codespace awake while Codex works. Every LIVE change still asks for your yes, auto mode too. `"off"` = Codex also asks before every program, and a store is opened in the terminal (needs kit 3.9 or later AND this repo's current `.github/stoily-render.js` in your copy: an older one refuses `"off"`). Nothing else is accepted. Read [Auto mode](#auto-mode-on-by-default) and the auto paragraph in "What the lock does NOT do". |
-| `codexVersion` | `latest` | The `@openai/codex` npm version installed into the image (the Feature's default; not in `stoily.json`). |
+| `codexVersion` | `0.167.0` | The `@openai/codex` npm version installed into the image (the Feature's option; not in `stoily.json`). The default is the version this kit release was tested with; `latest` takes the newest. A version below `0.167.0` fails the build: an older Codex does not enforce the locked settings. |
 
 An invalid value fails the updater's run (nothing is committed; the run's log names the value); an
 invalid option that reaches the Codespace fails its build with the option's name. Fix it and rebuild.
@@ -475,7 +476,9 @@ yet refuses the sign-in with `invalid_scope`: `go` says which and signs in witho
 later). **A new sign-in is a new connection:** a store Codex created can be published by
 `publish_all_drafts` only from the sign-in that created it, so run a whole-store brief from create to
 publish without a new sign-in in between (a kit update that needs other scopes, or the next day's
-retry of a refused scope, signs in again). To sign in again by hand (another account, other ticked
+retry of a refused scope, signs in again). **A pre-launch store Codex created before kit 3.10** was
+created on the old sign-in, so Codex can no longer publish it: press **Publish all** in Stoily admin
+for it. To sign in again by hand (another account, other ticked
 stores): `/usr/local/share/stoily-codespace/libexec/stoily mcp-proxy --sign-out`, then `go`.
 
 ## Who changed what, and undo
@@ -491,12 +494,14 @@ commits as that person too. Ask Codex in plain words:
 - **"undo that"** (or "undo the price change") — Codex shows what goes back (before → after) and
   waits for your yes. A setting, price or product gets its old value back; a product or category
   that was new is switched off or hidden, never deleted; a page or block goes back as a DRAFT the
-  merchant publishes; where there is no undo, Codex says so and why. The undo is a new change,
-  recorded like any other: the history is never rewritten.
+  merchant publishes; where there is no undo, Codex says so and why. A change whose old value the
+  kit could not read first has no automatic undo: Codex says so and asks what it should be. The undo
+  is a new change, recorded like any other: the history is never rewritten.
 
 When two people change the same thing from two Codespaces, nothing is lost: the kit settles its own
-records and store values by itself (re-reading the values from Stoily), and for anything else `save` says "you and `<name>` both
-changed: …". Codex asks you plainly — keep mine or keep theirs? — and settles it.
+records and store values by itself (re-reading the values from Stoily), and for a file of your own
+`save` stops with one plain message: "Someone else changed `<file>` at the same time — say 'keep mine'
+or 'keep theirs'". Say which; Codex settles it.
 
 ## Designs: the org's gallery
 
@@ -553,7 +558,8 @@ renames the repo to `<org>/store-<storeId>` (GitHub forwards the old address) an
 `clients/<storeId>`; every other Codespace of the org follows at its next `sync`. If GitHub does not
 let the Codespace rename it, Codex gives you the link to the repository's Settings page: change
 **Repository name** to the name it gives, click **Rename**, then type "done". A folder with unsaved
-work is saved first ("continue `<store>`", then "move `<store>`" again).
+work is not moved: say "continue `<store>`" and let Codex save it there, then "move `<store>`" in the
+lobby again.
 
 If you signed in with ticked stores instead (up to 50), a new store needs a new Stoily sign-in with
 ALL its stores ticked — or sign in once more and tick "All my stores" (see the runbook above).
