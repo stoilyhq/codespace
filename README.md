@@ -181,7 +181,7 @@ agency), each person's own Stoily role on each store, and GitHub's repo permissi
 | `check` | prove the lock (no AI, no sign-in) |
 | `work [<folder>]` | one tmux session `stoily`: a window per store folder (or just that one) |
 | `sync` | clone / pull every store: each `<org>/store-<storeId>` repo, and each older `<org>/<clientPrefix>*` repo, this Codespace can see |
-| `save "<what>"` | commit `stoily/` + `AGENTS.md`, push the store's repo (as you); after a conflict, `save --take-remote` takes GitHub's version ("keep theirs" in Codex, with your yes) and `save --restore <file> --from <branch>` then brings your version of a file back from the `conflict/…` branch the conflict line named ("keep mine") |
+| `save "<what>"` | commit `stoily/` + `AGENTS.md`, push the store's repo (as you); after a conflict, your version goes to a `conflict/…` branch on GitHub and an admin settles it there ([Who changed what](#who-changed-what-and-undo)) |
 | `save --design <name>` | publish the design Codex wrote to `stoily/designs/<name>/` into the org's gallery repo (validated, only that directory) |
 | `new-client <storeId> <host>` | open a store here: create `<org>/store-<storeId>` (or re-open the folder this Codespace already has for it). With auto mode on, Codex asks `go` to run it after the store card's yes when you say "open a store"; type it yourself only with `"auto": "off"` (`<host>` = the store's main domain) |
 | `new-client --pending` | the same, with no store yet: Codex creates the store (`create_store`, asked first) and the kit links the folder to it |
@@ -280,7 +280,7 @@ options in `devcontainer.json` (never edit that file: the next render replaces i
 | `owner` | `""` | GitHub login whose terminals keep a shell (Codex opens there too; closing it leaves a shell or the `work?` prompt). Every other account's terminal is Codex only (`go --loop`): saved and reopened when it closes. Empty = everyone keeps a shell. Optional: nothing needs it set. |
 | `maxHours` | `""` | Soft daily cap (whole hours of Codex, UTC day) for `go --loop` terminals. Empty = none. |
 | `galleryRepo` | `""` | The org's design gallery ([GALLERY.md](GALLERY.md)), cloned into `<workbench>/gallery` by `sync` when it exists and this Codespace can read it (otherwise skipped without a word). Empty = `<org>/gallery`; a repo name in the org, or `owner/name`. |
-| `auto` | `""` | **Auto mode is on by default.** `""` (the default) or `"on"` = auto mode: you type one sentence and Codex does the rest — `go` runs the kit's programs it asks for, Codex asks no clarifying questions besides which store (and its card's yes), which waiting store and the intake's plan (otherwise it picks a default and writes each choice under "Choices" in `stoily/progress.md`), and `go` keeps the Codespace awake while Codex works. Every LIVE change still asks for your yes, auto mode too, and so do an undo ("undo that") and "keep mine" / "keep theirs" after a conflict (its `save --take-remote` / `save --restore`). `"off"` = Codex also asks before every program, and a store is opened in the terminal (needs kit 3.9 or later AND this repo's current `.github/stoily-render.js` in your copy: an older one refuses `"off"`). Nothing else is accepted. Read [Auto mode](#auto-mode-on-by-default) and the auto paragraph in "What the lock does NOT do". |
+| `auto` | `""` | **Auto mode is on by default.** `""` (the default) or `"on"` = auto mode: you type one sentence and Codex does the rest — `go` runs the kit's programs it asks for, Codex asks no clarifying questions besides which store (and its card's yes), which waiting store and the intake's plan (otherwise it picks a default and writes each choice under "Choices" in `stoily/progress.md`), and `go` keeps the Codespace awake while Codex works. Every LIVE change still asks for your yes, auto mode too, and so does an undo ("undo that"); a conflict is settled by an admin on GitHub, never by Codex. `"off"` = Codex also asks before every program, and a store is opened in the terminal (needs kit 3.9 or later AND this repo's current `.github/stoily-render.js` in your copy: an older one refuses `"off"`). Nothing else is accepted. Read [Auto mode](#auto-mode-on-by-default) and the auto paragraph in "What the lock does NOT do". |
 | `codexVersion` | `0.167.0` | The `@openai/codex` npm version installed into the image (the Feature's option; not in `stoily.json`). The default is the version this kit release was tested with; `latest` takes the newest. A version below `0.167.0` fails the build: an older Codex does not enforce the locked settings. |
 
 An invalid value fails the updater's run (nothing is committed; the run's log names the value); an
@@ -512,15 +512,16 @@ a file: it settles its own records and store values by itself (re-reading the va
 For a file of your own that someone else changed on GitHub too, the kit pushes your version to a
 branch `conflict/<your login>-<UTC time>` on GitHub and changes nothing in your folder, and `save`
 stops with one line: "Someone else changed `<file1>`, `<file2>` at the same time — your version is
-kept on GitHub branch `<branch>`. Say 'keep mine' or 'keep theirs' for each." Codex passes the line
-on and stops: it never settles a clash by itself, auto mode too. Answer for each file, then say yes
-to what Codex shows: "keep theirs" = `save --take-remote` (your folder takes GitHub's version; yours
-stays on the branch); "keep mine" for a file = `save --take-remote`, then
-`save --restore <file> --from <branch>` with the branch the line named, which brings your version
-back, committed as you, and pushes it. Codex runs them (auto mode), or asks you to run them
-(`"auto": "off"`); they say `✅ took GitHub's version: …` and `✅ restored <file> from <branch>`. If
-the folder's store differs from GitHub's (its `STORE_ID` line), `save --take-remote` refuses ("this
-folder's store differs from GitHub's — ask an admin …") and Codex does not settle it: ask an admin.
+kept on GitHub branch `<branch>`. …" Codex passes the line on, then says: "Your version is safe on
+GitHub branch `<branch>`. You can keep working — each save puts your latest version on a new branch —
+and tell an admin." Codex never settles a clash by itself, auto mode too. Until an admin does, the
+store's main on GitHub waits: your later saves and the kit's records go to the newest `conflict/…`
+branch instead.
+
+**For an admin (settling a clash):** open the store's repo on GitHub and merge the NEWEST
+`conflict/<login>-*` branch into main (it holds the person's full history, the kit's records
+included; where GitHub asks, pick which version of each named file to keep). Then delete the older
+`conflict/<login>-*` branches. The person's next save goes through.
 
 ## Designs: the org's gallery
 
@@ -698,7 +699,7 @@ credited from `stoily/assets/sources.json`).
   terminal: `go -b prompts/<brief>.md <folder>`).
 - Several people can work on the same store: every change is committed as the person who made it,
   and two changes to the same file are never merged: your version is kept on a `conflict/…` branch,
-  your folder is left as it was, and you say "keep mine" or "keep theirs", then yes
+  your folder is left as it was, and an admin merges the newest such branch into main on GitHub
   ([Who changed what](#who-changed-what-and-undo)).
 - The template's `hostRequirements` asks for at least 2 cores / 8 GB: the smallest machine is offered
   first, but a member can still pick a bigger (dearer) one; only a paid-plan org policy on machine
