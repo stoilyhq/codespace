@@ -69,9 +69,10 @@ command line names (and this store's own folder on Stoily's media CDN, where its
 ### The locked settings (`/etc/codex/requirements.toml`)
 
 Codex's own settings (`~/.codex/config.toml`) are only defaults a person could change. The ones that
-matter are also pinned by **`/etc/codex/requirements.toml`**, a file owned by root that Codex reads on
-every start and that a staff member cannot override from Codex (no `-c` flag, no edited
-`config.toml`). The kit installs it, the same for every org (no option changes it), and it holds
+matter are also pinned by **`/etc/codex/requirements.toml`**, a file owned by root that the kit's Codex
+reads on every start and runs under, whatever `~/.codex/config.toml`, a `-c` flag or `CODEX_HOME` says.
+Codex does not refuse another value: it runs with the allowed one instead and says so at start
+(`codex doctor` lists it as a startup warning). The kit installs it, the same for every org (no option changes it), and it holds
 exactly these 7 settings (the file also has a few `#` comment lines and blank lines, 14 lines in all;
 `check` proves it is byte-equal to the kit's own copy):
 
@@ -99,8 +100,16 @@ The honest limits — this is a lock on Codex, not on the person at the keyboard
 - **The Codex version.** Codex older than 0.76 ignores the file; the kit installs 0.167.0 by default (the
   `codexVersion` option), and a `codexVersion` below 0.167.0 fails the Codespace's build.
 - **`CODEX_HOME`.** Starting Codex with `CODEX_HOME` pointing elsewhere drops the kit's `config.toml`
-  (its rules, its asks and its tool list); the file in `/etc/codex/` is meant to hold regardless
+  (its rules, its asks and its tool list), but not the locked settings: Codex reads
+  `/etc/codex/requirements.toml` at that fixed path whatever `CODEX_HOME` says
   ([TESTING.md](TESTING.md) K8 checks it).
+- **Another Codex, or `codex sandbox --permissions-profile`.** The locked settings bind the kit's
+  Codex, not the person at the terminal: anyone with a shell here can run another Codex (one below
+  0.76, installed with npm into their home, ignores them) or call `codex sandbox --permissions-profile …`,
+  which skips them by design. What holds against that is Stoily's own check of every call (the
+  person's role on the store, and what the sign-in was granted); the kit's check on every call (this
+  folder's store only) holds for the kit's Codex, not for someone who reads the kit's sign-in from
+  their own terminal.
 - **The rules are a strong default, not a wall.** "Stoily store work only" (anything else is declined
   in one line: `I only work on Stoily stores here.`), the store card's yes and the yes before every
   live change are Codex's rules, and Codex's own approval prompt on a live call is set in the kit's
@@ -172,7 +181,7 @@ agency), each person's own Stoily role on each store, and GitHub's repo permissi
 | `check` | prove the lock (no AI, no sign-in) |
 | `work [<folder>]` | one tmux session `stoily`: a window per store folder (or just that one) |
 | `sync` | clone / pull every store: each `<org>/store-<storeId>` repo, and each older `<org>/<clientPrefix>*` repo, this Codespace can see |
-| `save "<what>"` | commit `stoily/` + `AGENTS.md`, push the store's repo (as you); `save --resolve mine` / `save --resolve theirs` settle a conflict ("keep mine" / "keep theirs" in Codex) |
+| `save "<what>"` | commit `stoily/` + `AGENTS.md`, push the store's repo (as you); `save --keep-mine <file> [<file>…]` brings your version of a file back from its `conflict/…` branch after a conflict ("keep mine" in Codex; "keep theirs" needs nothing) |
 | `save --design <name>` | publish the design Codex wrote to `stoily/designs/<name>/` into the org's gallery repo (validated, only that directory) |
 | `new-client <storeId> <host>` | open a store here: create `<org>/store-<storeId>` (or re-open the folder this Codespace already has for it). With auto mode on, Codex asks `go` to run it after the store card's yes when you say "open a store"; type it yourself only with `"auto": "off"` (`<host>` = the store's main domain) |
 | `new-client --pending` | the same, with no store yet: Codex creates the store (`create_store`, asked first) and the kit links the folder to it |
@@ -271,7 +280,7 @@ options in `devcontainer.json` (never edit that file: the next render replaces i
 | `owner` | `""` | GitHub login whose terminals keep a shell (Codex opens there too; closing it leaves a shell or the `work?` prompt). Every other account's terminal is Codex only (`go --loop`): saved and reopened when it closes. Empty = everyone keeps a shell. Optional: nothing needs it set. |
 | `maxHours` | `""` | Soft daily cap (whole hours of Codex, UTC day) for `go --loop` terminals. Empty = none. |
 | `galleryRepo` | `""` | The org's design gallery ([GALLERY.md](GALLERY.md)), cloned into `<workbench>/gallery` by `sync` when it exists and this Codespace can read it (otherwise skipped without a word). Empty = `<org>/gallery`; a repo name in the org, or `owner/name`. |
-| `auto` | `""` | **Auto mode is on by default.** `""` (the default) or `"on"` = auto mode: you type one sentence and Codex does the rest — `go` runs the kit's programs it asks for, Codex asks no clarifying questions besides which store (and its card's yes), which waiting store and the intake's plan (otherwise it picks a default and writes each choice under "Choices" in `stoily/progress.md`), and `go` keeps the Codespace awake while Codex works. Every LIVE change still asks for your yes, auto mode too. `"off"` = Codex also asks before every program, and a store is opened in the terminal (needs kit 3.9 or later AND this repo's current `.github/stoily-render.js` in your copy: an older one refuses `"off"`). Nothing else is accepted. Read [Auto mode](#auto-mode-on-by-default) and the auto paragraph in "What the lock does NOT do". |
+| `auto` | `""` | **Auto mode is on by default.** `""` (the default) or `"on"` = auto mode: you type one sentence and Codex does the rest — `go` runs the kit's programs it asks for, Codex asks no clarifying questions besides which store (and its card's yes), which waiting store and the intake's plan (otherwise it picks a default and writes each choice under "Choices" in `stoily/progress.md`), and `go` keeps the Codespace awake while Codex works. Every LIVE change still asks for your yes, auto mode too, and so do an undo ("undo that") and "keep mine" / "keep theirs" after a conflict. `"off"` = Codex also asks before every program, and a store is opened in the terminal (needs kit 3.9 or later AND this repo's current `.github/stoily-render.js` in your copy: an older one refuses `"off"`). Nothing else is accepted. Read [Auto mode](#auto-mode-on-by-default) and the auto paragraph in "What the lock does NOT do". |
 | `codexVersion` | `0.167.0` | The `@openai/codex` npm version installed into the image (the Feature's option; not in `stoily.json`). The default is the version this kit release was tested with; `latest` takes the newest. A version below `0.167.0` fails the build: an older Codex does not enforce the locked settings. |
 
 An invalid value fails the updater's run (nothing is committed; the run's log names the value); an
@@ -498,10 +507,15 @@ commits as that person too. Ask Codex in plain words:
   kit could not read first has no automatic undo: Codex answers: "I can't undo that change automatically — I didn't get its old value. Tell me what it should be and I'll set it (with your yes)." The undo
   is a new change, recorded like any other: the history is never rewritten.
 
-When two people change the same thing from two Codespaces, nothing is lost: the kit settles its own
-records and store values by itself (re-reading the values from Stoily), and for a file of your own
-`save` stops with one plain message: "Someone else changed `<file>` at the same time — say 'keep mine'
-or 'keep theirs'". Say which: "keep mine" keeps your version, "keep theirs" takes the one on GitHub. Codex then runs `save --resolve mine` or `save --resolve theirs` (auto mode), or asks you to run it (`"auto": "off"`).
+When two people change the same thing from two Codespaces, nothing is lost, and the kit never merges
+a file: it settles its own records and store values by itself (re-reading the values from Stoily).
+For a file of your own that someone else changed on GitHub too, the kit first pushes your version to
+a branch `conflict/<your login>-<UTC time>` on GitHub, then takes GitHub's version here, and `save`
+stops with one line: "Someone else changed `<file1>`, `<file2>` at the same time — your version is
+kept on GitHub branch `<branch>`. Say 'keep mine' or 'keep theirs' for each." Answer for each file:
+"keep mine" brings your version back from that branch — Codex runs `save --keep-mine <file>` (auto
+mode), or asks you to run it (`"auto": "off"`), and it is committed as you and pushed; "keep theirs"
+keeps the one from GitHub, which is already there: nothing to run.
 
 ## Designs: the org's gallery
 
@@ -678,8 +692,8 @@ credited from `stoily/assets/sources.json`).
 - `go` opens Codex without a brief; say "build `<brief>`" in a store's Codex to start one (in a
   terminal: `go -b prompts/<brief>.md <folder>`).
 - Several people can work on the same store: every change is committed as the person who made it,
-  and two changes to the same thing are settled by "keep mine" or "keep theirs"
-  ([Who changed what](#who-changed-what-and-undo)).
+  and two changes to the same file are never merged: your version is kept on a `conflict/…` branch
+  and you say "keep mine" or "keep theirs" ([Who changed what](#who-changed-what-and-undo)).
 - The template's `hostRequirements` asks for at least 2 cores / 8 GB: the smallest machine is offered
   first, but a member can still pick a bigger (dearer) one; only a paid-plan org policy on machine
   types restricts it.
