@@ -165,9 +165,10 @@ account GitHub lists only its PUBLIC repos, so a private client repo there is fo
    enter on a web page) and to Stoily (tick **"All my stores, including future ones"**), checks that
    everything is locked down, then opens Codex. This works the same for any GitHub account, the
    `owner` or not.
-   - No client yet? Type **"set up a client"** in Codex. It lists your Stoily stores by number: answer
-     with the number of the store, then give the client a name (Codex suggests one). Codex creates the
-     client's private repo `<org>/client-<name>`. If GitHub does not let the Codespace create it, Codex
+   - No client yet? Type **"set up a client"** in Codex. It lists your Stoily stores by number and, in
+     the same message, suggests a name for the client: answer with the store's number or name (that keeps the
+     suggested name), or add another name ("2, call it shop"). Codex creates the client's
+     private repo `<org>/client-<name>`. If GitHub does not let the Codespace create it, Codex
      gives you a GitHub link: open it, click **Create repository**, then type "done".
    - Codex then opens that client. Say what you want built, in your own words: Codex writes a plan
      (the intake), shows it to you, and builds once you approve it.
@@ -208,7 +209,7 @@ options in `devcontainer.json` (never edit that file: the next render replaces i
 | `owner` | `""` | GitHub login whose terminals keep a shell (Codex opens there too; closing it leaves a shell or the `work?` prompt). Every other account's terminal is Codex only (`go --loop`): saved and reopened when it closes. Empty = everyone keeps a shell. Optional: nothing needs it set. |
 | `maxHours` | `""` | Soft daily cap (whole hours of Codex, UTC day) for `go --loop` terminals. Empty = none. |
 | `galleryRepo` | `""` | The org's design gallery ([GALLERY.md](GALLERY.md)), cloned into `<workbench>/gallery` by `sync` when it exists and this Codespace can read it (otherwise skipped without a word). Empty = `<org>/gallery`; a repo name in the org, or `owner/name`. |
-| `auto` | `""` | **Auto mode is on by default.** `""` (the default) or `"on"` = auto mode: you type one sentence and Codex does the rest — no approval prompts (except `create_store`, which still asks; and only in the Codex `go` starts, staff terminals included: a bare `codex` or a `work` window keep asking), no clarifying questions besides which store, the client's name and the intake's plan (otherwise it picks a default and writes each choice under "Choices" in `stoily/progress.md`), `go` runs the kit's programs it asks for, and `go` keeps the Codespace awake while Codex works. `"off"` = Codex asks before every LIVE write and every program (needs kit 3.9 or later AND this repo's current `.github/stoily-render.js` in your copy: an older one refuses `"off"`). Nothing else is accepted. Read [Auto mode](#auto-mode-on-by-default) and the auto paragraph in "What the lock does NOT do". |
+| `auto` | `""` | **Auto mode is on by default.** `""` (the default) or `"on"` = auto mode: you type one sentence and Codex does the rest — no approval prompts (except `create_store`, which still asks; and only in the Codex `go` starts, staff terminals included: a bare `codex` or a `work` window keep asking), no clarifying questions besides which store, the client's name, which waiting client and the intake's plan (otherwise it picks a default and writes each choice under "Choices" in `stoily/progress.md`), `go` runs the kit's programs it asks for, and `go` keeps the Codespace awake while Codex works. `"off"` = Codex asks before every LIVE write and every program (needs kit 3.9 or later AND this repo's current `.github/stoily-render.js` in your copy: an older one refuses `"off"`). Nothing else is accepted. Read [Auto mode](#auto-mode-on-by-default) and the auto paragraph in "What the lock does NOT do". |
 | `codexVersion` | `latest` | The `@openai/codex` npm version installed into the image (the Feature's default; not in `stoily.json`). |
 
 An invalid value fails the updater's run (nothing is committed; the run's log names the value); an
@@ -221,8 +222,10 @@ said in Codex — no terminal:
 
 ```
  lobby Codex: "set up a client"
-   │ list_stores → your stores, numbered
-   │ you: "2"  → Codex: "name it acme?"  → you: "yes"
+   │ list_stores → your stores, numbered, and a name
+   │   for the client: "acme"
+   │ you: "2" (or "2, call it shop")
+   │ Codex: "Setting up acme for <store>"
    │ asks go: new-client acme <storeId> <host> -b intake
    ▼
  go ends the lobby Codex and starts Codex in clients/acme
@@ -232,15 +235,19 @@ said in Codex — no terminal:
 ```
 
 - Say it in the lobby (the Codex a terminal opens when no client is open yet): **"set up a client"**.
-  Codex lists your Stoily stores by number; pick one, confirm the client's name, and Codex creates
-  and binds `<org>/client-<name>`. Codex takes the store's id and address from that list: you never
+  Codex lists your Stoily stores by number and suggests the client's name in the same message;
+  answer with the store's number or name (add another name for the client if you like), and Codex creates and binds
+  `<org>/client-<name>`. Codex takes the store's id and address from that list: you never
   type them. Then Codex opens the client: describe the site in your own words and approve the plan.
   You can also say it all at once ("set up acme for `<store>`: a shop for handmade clocks") or name
   a brief ("…, build demo-store", a prompt in `prompts/`).
 - If GitHub does not let the Codespace create the repo (any account, an org or a personal one), Codex
   shows you a GitHub link: open it, click **Create repository**, then type "done" and Codex carries on.
+- A store with no domain cannot be picked yet: one still being set up → Codex says to try again in a
+  minute; one Stoily could not finish creating, or a ready one with no domain yet → pick another.
 - A client already set up: "continue `<name>`".
-- Codex never asks: where something is not said, it picks the default and records each choice under
+- Besides those questions (which store, the client's name, which waiting client, the intake's plan)
+  and `create_store`, Codex never asks: where something is not said, it picks the default and records each choice under
   "Choices" in `stoily/progress.md`. Read it afterwards.
 - What auto does NOT change: the sandbox (writes only in its folder, no shell network), no domains,
   DNS or members, other stores stay out of reach, page changes stay drafts, and publishing a store
@@ -409,8 +416,8 @@ picks a pending client by itself: name it).
    client for their password; there are no member tools.
 2. In the lobby Codex: **"set up a client"** — it lists your stores by number (the new one included),
    you pick it and name the client, and it creates `<org>/client-<name>`; every Codespace of the org
-   clones it at its next `sync`. (`list_stores` shows 100 stores per page; ask Codex for the next page
-   to see the rest.) With `"auto": "off"`, in a terminal: `codex exec "call list_stores"` → the new
+   clones it at its next `sync`. (Codex reads every page of `list_stores` by itself, 100 stores a
+   page.) With `"auto": "off"`, in a terminal: `codex exec "call list_stores"` → the new
    store id → `new-client <name> <storeId> <host>`.
 
 **A client folder is bound to ONE store and host, forever.** `save` refuses a change to `STORE_ID`
@@ -450,8 +457,10 @@ credited from `stoily/assets/sources.json`).
 ## Every day
 
 - New terminal → Codex opens (auto mode; "continue `<name>`" picks a client). Where terminals keep a
-  shell (the owner's, or everyone's when `owner` is empty), closing Codex leaves `work?` → `*` (every client) or a client's name → one tmux window per client.
-  `Ctrl-b <n>` switches window, `Ctrl-b d` detaches, Enter at `work?` gives a plain shell.
+  shell (the owner's, or everyone's when `owner` is empty), closing Codex leaves a plain shell: type `work` (every client) or `work <name>` for one tmux window
+  per client. The `work?` prompt (`*`, a client's name, or Enter for a plain shell) appears instead
+  when Codex is already open in another terminal, or with auto off.
+  `Ctrl-b <n>` switches window, `Ctrl-b d` detaches.
 - In a client window: `codex` and ask. It snapshots before and after into `stoily/` and writes
   drafts. Then run `save "what changed"` (or approve Codex running it). Publish the drafts in
   Stoily (PageBuilder).
