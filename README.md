@@ -245,7 +245,8 @@ said in Codex — no terminal:
   shows you a GitHub link: open it, click **Create repository**, then type "done" and Codex carries on.
 - A store with no domain cannot be picked yet: one still being set up → Codex says to try again in a
   minute; one Stoily could not finish creating, or a ready one with no domain yet → pick another.
-- A client already set up: "continue `<name>`".
+- A client already set up: "continue `<name>`". Setting up a name that already exists for that store
+  just opens that client as it is: say what you want built (or "build `<brief>`") there.
 - Besides those questions (which store, the client's name, which waiting client, the intake's plan)
   and `create_store`, Codex never asks: where something is not said, it picks the default and records each choice under
   "Choices" in `stoily/progress.md`. Read it afterwards.
