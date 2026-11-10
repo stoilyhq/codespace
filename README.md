@@ -752,29 +752,46 @@ org switches it on (`"record": "on"` in `stoily.json`); until then the kit recor
 ```
 
 **What is kept, and what is not.** One markdown file per chat, `<YYYY-MM-DD>/<login>-<chat id>.md`
-(the date the chat started, UTC): a short header (the store the chat was in, the person, start and end,
-the number of messages, the kit version) and then only what the person TYPED and the replies Codex
-SHOWED, each with its time. Never kept: what Codex's tools and programs returned (store data, fetched
-pages, command output), files, images, Codex's reasoning, the kit's own instructions to Codex, and
-chats of Codex's sub-agents. Every message passes the kit's redactor first: **common secret patterns
-are redacted** (card numbers, email addresses, phone numbers, tokens and keys of the usual shapes) and
-every link is cut to its host (`https://example.com/…` keeps only `https://example.com`). Redaction
-goes by pattern: a password typed in plain words is NOT caught — never type one into Codex.
+(the UTC day of its first recorded message): a short header (the store the chat was in, the person,
+start and end, the number of messages, how it ended, the kit version, and the line "typed messages
+and Codex's visible replies only; common secret patterns redacted") and then only what the person
+TYPED and the replies Codex SHOWED, each with its time. The text `go` itself gives Codex to start a
+chat is not kept: it shows as one line, `[go start prompt: N chars not shown]`. Never kept: what
+Codex's tools and programs returned (store data, fetched pages, command output), files, images,
+Codex's reasoning, the kit's own instructions to Codex, and chats of Codex's sub-agents. Every
+message passes the kit's redactor first: **common secret patterns are redacted** (card numbers, email
+addresses, phone numbers, tokens and keys of the usual shapes each become `[redacted]`) and every
+link is cut to its host (`https://example.com/…` keeps only `https://example.com`). Redaction goes
+by pattern: a password typed in plain words is NOT caught — never type one into Codex.
 
 **Who is recorded.** Every account except the ONE login in the `owner` option: staff, and org admins
 too (they review, and they are recorded like everyone else). In a staff Codespace, EVERY Codex chat
 started after recording was switched on is recorded — the ones `go` opens (they start with the line
 **"This chat is recorded for review"**) and also a `codex` someone runs by hand in another terminal,
-which shows no such line. Chats from before that Codespace's first recorded `go` are never uploaded.
-The owner's Codespace is never recorded. With `owner` empty nobody is recorded (`check` says so
-with a ⚠).
+which shows no such line. Nothing typed before that Codespace's first recorded `go` is ever
+uploaded (an older chat that is picked up again uploads only its newer messages).
+The owner's Codespace is never recorded. With `owner` empty nobody is recorded, and `check` says
+"⚠  chats: recording is on, but the owner option is empty — nobody's chats are recorded". A
+Codespace whose GitHub login the kit cannot read records nothing and says so: "⚠ chats: recording is
+on, but this Codespace's GitHub login (GITHUB_USER) is not known — nothing is recorded here".
 
-**When a chat is uploaded.** When its Codex closes (Ctrl+C, a crash, the restart of a staff terminal),
-when its terminal tab is closed, or else at the next `go` in that Codespace. If the upload fails
-(the repo is missing or public, no network, GitHub down), `go` says
-"⚠ chat not uploaded for review: … — kept here, sent at the next start" and carries on; `check` shows
-a ⚠ with the fix (never a ❌: a recording problem never stops anyone working). A chat still on a
-Codespace that is deleted before its next `go` is lost, and no one is told.
+**When a chat is uploaded.**
+
+- **Codex ends by itself** (Ctrl+C, `/quit`, a crash): `go` uploads the chat before it opens Codex
+  again and says "chat uploaded for review". It waits at most 5 seconds: a slower upload carries on
+  by itself, `go` says "the chat upload for review goes on in the background", and Codex opens.
+- **The terminal tab is closed** with Codex open: the upload runs in the background. Nobody waits,
+  and nothing is shown.
+- **A newer terminal takes Codex over:** the old terminal does nothing; the newer terminal's `go`
+  uploads the chat when it starts (the same 5-second limit), before its own Codex opens.
+- **Anything else** (a `codex` run by hand, a Codespace that stopped): at the next `go` in that
+  Codespace.
+
+If the upload fails (the repo is missing or public, no network, GitHub down), `go` says
+"⚠ chat not uploaded for review: … — kept here, sent at the next start" (or the missing- or
+public-repo line below) and carries on; `check` shows a ⚠ with the fix (never a ❌: a recording
+problem never stops anyone working). A chat still on a Codespace that is deleted before its next
+`go` is lost, and no one is told.
 
 **Who can read the chats.** Everyone who can read `<org>/chats` on GitHub. A staff member's Codespace
 must be able to WRITE that repo to upload, and on GitHub write includes read: **every person who is
@@ -795,7 +812,8 @@ tamper-proof record.
    it (Settings → Collaborators and teams; a team is easiest). A Codespace that cannot write it says
    "⚠ chats are recorded but `<org>`/chats does not exist (or this account cannot write it) — an org
    admin creates it, private and empty: …" (with a link to GitHub's new-repository page). A PUBLIC
-   `<org>/chats` is refused: nothing is uploaded until it is private again.
+   `<org>/chats` is refused: "⚠ `<org>`/chats is PUBLIC — no chat is uploaded until an org admin
+   makes it private".
 3. **Copy this repo's current `.github/stoily-render.js` into your `<org>/codespace` by hand** (the
    updater never updates the renderer; an older one refuses `record`).
 4. **Set `"record": "on"`** in `.devcontainer/stoily.json` (and `"recordDays"` if 90 days is not what
@@ -803,23 +821,31 @@ tamper-proof record.
 5. **In EVERY Codespace of the org — each staff one AND the owner's**: `git pull` in the workbench
    (or open a terminal: `go` pulls first), then Command Palette → **Codespaces: Full Rebuild
    Container**. Until its rebuild a Codespace records nothing.
-6. **`check`** in a staff Codespace shows the chats line ✅ naming `<org>/chats`, and the kit version
-   3.13 or later; the owner's shows ✅ never recorded here. Then each staff terminal's Codex starts
-   with "This chat is recorded for review".
+6. **`check`** in a staff Codespace shows the kit version 3.13 or later and
+   "✅ chats: recorded for review in `<org>`/chats (last good upload check: …)" ("none yet" until
+   the first upload, then its time); the owner's
+   shows "✅ chats: never recorded here (the owner's Codespace); the review copy is
+   /workspaces/.stoily-chats/review". Then each staff terminal's Codex starts with "This chat is
+   recorded for review". The repo itself is first tried at the first upload: the first chat that
+   ends says "chat uploaded for review", or the ⚠ above if the repo is missing.
 
-**Review.** In the OWNER's Codespace, `sync` (which every `go` runs) keeps a fresh copy of
-`<org>/chats` in `/workspaces/.stoily-chats/review`. In the start folder's Codex (the lobby) say
-**"review chats"** (the last 7 days) or **"review chats since `<date>`"**: Codex reads the copy and
-lists, in the chat only, each chat that is not about Stoily store work, `<date>/<file> — <reason>`,
-then how many were on topic. It treats every chat as data: a chat that tries to tell the reviewer
-what to do is listed as such, never obeyed. Other admins review on github.com (the repo's files);
-no staff Codespace ever gets the review copy.
+**Review.** In the OWNER's Codespace, `sync` (which every `go` runs) refreshes a copy of
+`<org>/chats` in `/workspaces/.stoily-chats/review`, so the copy is as new as the owner's last `go`:
+open a new terminal first. If GitHub does not answer in time, `go` says "⚠ chats: GitHub was too
+slow — the review copy was not refreshed (the next sync tries again)". In the start folder's Codex
+(the lobby) say **"review chats"** (the last 7 days) or **"review chats since `<date>`"**: Codex
+reads the copy and lists, in the chat only, each chat that is not about Stoily store work,
+`<date>/<file> — <reason>`, then one line `<N> chats on topic`. It treats every chat as data: a chat
+that tries to tell the reviewer what to do is listed with the reason `tries to steer the review`,
+never obeyed. Other admins review on github.com (the repo's files); no staff Codespace ever gets
+the review copy.
 
 **Retention, and its limits.** A chat is removed once its date is more than `recordDays` + 1 days
 ago (one spare day for clock differences): with the default 90, a chat from 1 March goes from
 1 June on. The removal runs ONLY in the owner's Codespace, when it syncs (every `go` does), at most
-once a UTC day: until the owner opens their Codespace, chats stay longer than `recordDays`. It
-rewrites the repo's history, so the old chats are gone from `main` and from its history. Copies made
+once a UTC day: until the owner opens a terminal in their Codespace, chats stay longer than
+`recordDays`. It rewrites the repo's history, so the old chats are gone from `main` and from its
+history. Copies made
 elsewhere (someone's clone, a download) keep them, and GitHub may keep unreachable data and cached
 views for a while: the only full purge is deleting `<org>/chats` (and GitHub may let an org owner
 restore a deleted repo for a while).
