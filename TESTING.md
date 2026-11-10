@@ -147,6 +147,23 @@ GitHub account in the org; K7 also an older `<org>/client-<name>` repo of a test
 | K11 staff and auto off | With `owner` set to another account: a staff terminal (`go --loop`) — K2 and K3 again. In an org with `"auto": "off"`: K3 again | the same card, yes, live-change asks and records; in auto mode no step tells you to type in a terminal | never run in a Codespace |
 | K12 ChatGPT untouched | Sign in to ChatGPT as before (device code; and once with the shared `CODEX_AUTH_JSON` secret), then `check`. Then, in a terminal: `chmod 000 ~/.codex/auth.json; /usr/local/share/stoily-codespace/libexec/stoily mcp-proxy --status; chmod 600 ~/.codex/auth.json` | ChatGPT sign-in works exactly as in 3.9 (`check` says `signed in here` or `shared: the CODEX_AUTH_JSON secret`); with `auth.json` unreadable the kit's own Stoily sign-in still answers `signed in (scopes …; expires …)` (it never reads the ChatGPT file). Put `auth.json` back to `600` even if a step failed | never run in a Codespace |
 
+## 6. Kit 3.12 — one Codex at a time (the newest terminal takes it over)
+
+Run on kit 3.12 or later (`check | grep "kit v"`), auto mode, on the test store of track 2 (`<store>`).
+M3 needs `owner` set to another account (a staff terminal).
+From kit 3.12 a new terminal takes Codex over: where an earlier row says "in another terminal" while
+Codex is open (T2, T3, K1, K8, K12), run it in the old terminal after the move (it is a plain shell then),
+or close Codex first.
+
+| ID | Do | Pass when | Status |
+|---|---|---|---|
+| M1 owner, two terminals | In terminal A open `<store>` ("continue `<store>`" → yes) and ask anything. Open terminal B (+). | B prints "Codex is open in … : moving it here" and opens Codex in `clients/<store>` ("You are working on `<name>` — `<host>`"), a fresh chat; A's Codex closes and A's LAST line is "Codex moved to the newer terminal (/dev/pts/N)" (N = B's terminal), then a plain shell; never two Codex at once; neither the "moving it here" line nor the "moved" line shows a store id (the `2/6 client` line still does: known) | never run in a Codespace |
+| M2 old shell usable | Right after M1, in terminal A: type `echo ok`, paste a line (Ctrl+V / Cmd+V), press Ctrl+C, press an arrow key | the text appears as typed (no `^[[200~`, no `27;5u`-style codes, no mouse codes when you move the mouse); Ctrl+C gives a new prompt | never run in a Codespace |
+| M3 staff | In a staff terminal with Codex open, open another terminal | the old tab closes by itself after "Codex moved to the newer terminal"; the new one has Codex in the same store | never run in a Codespace |
+| M4 save in flight | In A ask Codex to save (approve it); while the save runs, open terminal B | the save's commit is on GitHub (`git -C clients/<store> log -1` = origin's), and only THEN A's Codex closes and B opens Codex (a save longer than 10 s also shows "waiting for the kit program running there to finish" in B) | never run in a Codespace |
+| M5 not during sign-in | In A (a plain shell): `/usr/local/share/stoily-codespace/libexec/stoily mcp-proxy --sign-out`, then `go`; while A waits at the Stoily sign-in address, open B | B stays silent for about 10 s, then says Codex is already open in A and (owner) shows the `work?` prompt; it does not take over; A's sign-in is untouched | never run in a Codespace |
+| M6 a typo | After M1 (Codex now in B, A a plain shell): in A type `go Not_A_Store` | A stops with the client-name line and writes nothing; B's Codex keeps running | never run in a Codespace |
+
 ## Cleanup
 
 - Stoily → Content → Pages: delete **Test About, Test FAQ, Test Clone, Test Other**. Discard the

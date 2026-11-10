@@ -610,8 +610,13 @@ credited from `stoily/assets/sources.json`).
 - New terminal → Codex opens (auto mode; "continue `<store>`" picks a store, after its card's yes).
   Where terminals keep a shell (the owner's, or everyone's when `owner` is empty), closing Codex leaves
   a plain shell: type `work` (every store) or `work <folder>` for one tmux window per store folder.
-  The `work?` prompt (`*`, a folder's name, or Enter for a plain shell) appears instead when Codex is
-  already open in another terminal, or with auto off.
+  The `work?` prompt (`*`, a folder's name, or Enter for a plain shell) appears instead with auto off,
+  or when another terminal is still setting up or signing in.
+- One Codex at a time (kit 3.12): opening a new terminal moves Codex there. The old terminal's Codex
+  closes (a save it is running finishes first) and it prints "Codex moved to the newer terminal"; the
+  new one opens Codex in the same store, with a fresh chat. A terminal that is still setting up or
+  signing in is never interrupted. In a staff terminal (`go --loop`) that says Codex is already open,
+  open another terminal to move it.
   `Ctrl-b <n>` switches window, `Ctrl-b d` detaches.
 - In a store window: `codex` and ask. Its first line names the store ("You are working on `<name>` —
   `<domain>`"). It snapshots before and after into `stoily/` and writes
