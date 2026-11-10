@@ -4,5 +4,7 @@
   "maxHours": "",
   "clientPrefix": "client-",
   "galleryRepo": "",
-  "auto": ""
+  "auto": "",
+  "record": "",
+  "recordDays": ""
 }

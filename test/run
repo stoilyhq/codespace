@@ -75,7 +75,7 @@ has "references the Feature by its major (:$MAJOR)" "$(cat "$tpl")" "\"ghcr.io/s
 is "…and by nothing else (no digest, no other tag)" "$(grep -c 'ghcr.io/stoilyhq/codespace/stoily' "$tpl")" 1
 is "carries no lifecycle command of its own (the Feature does)" "$(grep -cE '"(postCreate|postStart|onCreate)Command"' "$tpl")" 0
 is "the template keeps its comments (it is the source, not a render)" "$(grep -c '^ *//' "$tpl" | awk '{print ($1 > 3)}')" 1
-is "stoily.json = the placeholder org + the defaults" "$(node -e 'console.log(JSON.stringify(require(process.argv[1])))' "$REPO/.devcontainer/stoily.json")" '{"org":"YOUR-ORG","owner":"","maxHours":"","clientPrefix":"client-","galleryRepo":"","auto":""}'
+is "stoily.json = the placeholder org + the defaults" "$(node -e 'console.log(JSON.stringify(require(process.argv[1])))' "$REPO/.devcontainer/stoily.json")" '{"org":"YOUR-ORG","owner":"","maxHours":"","clientPrefix":"client-","galleryRepo":"","auto":"","record":"","recordDays":""}'
 is "…and the template's Feature never carries auto (a 3.1 kit does not declare it: the build may fail or ignore it)" "$(grep -c '"auto"' "$tpl")" 0
 
 echo "the renderer (.github/stoily-render.js): an org's devcontainer.json = the template + stoily.json"
@@ -121,7 +121,7 @@ is "…the string keeps its //" "$(rj "$RD/out3.json" 'console.log(j.name)')" "a
 is "…any other grant is dropped: only <org>/*" "$(rj "$RD/out3.json" 'console.log(Object.keys(j.customizations.codespaces.repositories).join(" "))')" "$ORG/*"
 is "…the template's own option + other Feature + vscode kept, org set" "$(rj "$RD/out3.json" 'const f=j.features["ghcr.io/stoilyhq/codespace/stoily:2"];console.log(f.codexVersion+" "+f.org+" "+Object.keys(j.features).length+" "+j.customizations.vscode.x)')" "1.2.3 $ORG 2 1"
 cp "$RD/out.json" "$RD/keep.json"
-for bad in '"auto":"On"' '"auto":"Off"' '"auto":" off"' '"auto":"true"' '"auto":"1"' '"auto":" on"' '"auto":true' '"constructor":"x"' '"__proto__":"x"' '"toString":"x"' '"org":"a.b"' '"org":"YOUR-ORG"' '"org":"your-org"' '"org":""' '"maxHours":"six"' '"owner":"a b"' '"clientPrefix":""' '"clientPrefix":"Client-"' '"galleryRepo":"../x"' '"galleryRepo":"a/b/c"' '"extra":"x"' '"org":7'; do
+for bad in '"auto":"On"' '"auto":"Off"' '"auto":" off"' '"auto":"true"' '"auto":"1"' '"auto":" on"' '"auto":true' '"record":"On"' '"record":"yes"' '"record":"ON"' '"record":" on"' '"record":true' '"recordDays":"0"' '"recordDays":"1000"' '"recordDays":"090"' '"recordDays":" 90"' '"recordDays":"-1"' '"recordDays":90' '"constructor":"x"' '"__proto__":"x"' '"toString":"x"' '"org":"a.b"' '"org":"YOUR-ORG"' '"org":"your-org"' '"org":""' '"maxHours":"six"' '"owner":"a b"' '"clientPrefix":""' '"clientPrefix":"Client-"' '"galleryRepo":"../x"' '"galleryRepo":"a/b/c"' '"extra":"x"' '"org":7'; do
   case "$bad" in '"org"'*) body="{$bad}" ;; *) body="{\"org\":\"$ORG\",$bad}" ;; esac
   printf '%s\n' "$body" > "$RD/bad.json"
   out="$(render "$tpl" "$RD/bad.json" "$RD/out.json")"; rc=$?
@@ -149,6 +149,32 @@ is "…rendered twice → byte-identical" "$(cmp -s "$RD/auto-off-out.json" "$RD
 printf '{"features":{"ghcr.io/stoilyhq/codespace/stoily:%s":{"auto":"on","codexVersion":"1"}}}\n' "$MAJOR" > "$RD/tpl-auto.json"
 is "a template that carries auto → stoily.json decides (\"\" drops it, the template's other options kept)" "$(render "$RD/tpl-auto.json" "$RD/auto-empty.json" "$RD/tpl-auto-out.json" >/dev/null; rj "$RD/tpl-auto-out.json" "const f=j.features['ghcr.io/stoilyhq/codespace/stoily:$MAJOR'];console.log(('auto' in f)+' '+f.codexVersion)")" "false 1"
 is "…and \"off\" over a template's auto → \"off\" (the template's other options kept)" "$(render "$RD/tpl-auto.json" "$RD/auto-off.json" "$RD/tpl-auto-off-out.json" >/dev/null; rj "$RD/tpl-auto-off-out.json" "const f=j.features['ghcr.io/stoilyhq/codespace/stoily:$MAJOR'];console.log(f.auto+' '+f.codexVersion)")" "off 1"
+# record: absent, "" or "off" → recording off (the kit's default): NO key, so the render is byte-identical
+# to one without it (a kit before 3.13 never sees it); "on" → "record": "on" (last); recordDays is written
+# ONLY with record "on" and a value (otherwise no key: the kit's 90 days), right after record.
+rec() { printf '{"org":"%s","owner":"boss","maxHours":"6","clientPrefix":"client-","galleryRepo":"designs"%s}\n' "$ORG" "$1" > "$RD/rec-$2.json"; render "$tpl" "$RD/rec-$2.json" "$RD/rec-$2-out.json" >/dev/null; echo $?; }
+FK="ghcr.io/stoilyhq/codespace/stoily:$MAJOR"
+is "record \"\", \"off\", recordDays without on → each renders (exit 0)" "$(rec ',"record":""' empty) $(rec ',"record":"off"' off) $(rec ',"record":"","recordDays":"30"' days-empty) $(rec ',"record":"off","recordDays":"30"' days-off) $(rec ',"recordDays":"30"' days-only) $(rec ',"record":"","recordDays":""' both-empty)" "0 0 0 0 0 0"
+for c in empty off days-empty days-off days-only both-empty; do
+  is "…record $c → byte-identical to the render without record" "$(cmp -s "$RD/auto-none-out.json" "$RD/rec-$c-out.json" && echo same)" same
+done
+is "…no record or recordDays key in any of them (nor in the org-only render)" "$(cat "$RD"/rec-*-out.json "$RD/min-out.json" | grep -cE '"record(Days)?"')" 0
+is "record \"on\" → renders" "$(rec ',"record":"on"' on) $(rec ',"record":"on","recordDays":""' on-days-empty) $(rec ',"record":"on","recordDays":"30"' on-days) $(rec ',"auto":"off","record":"on","recordDays":"7"' auto-off-on-days)" "0 0 0 0"
+is "…the Feature's options gain \"record\": \"on\" (last)" "$(rj "$RD/rec-on-out.json" "console.log(JSON.stringify(j.features['$FK']))")" "{\"org\":\"$ORG\",\"owner\":\"boss\",\"maxHours\":\"6\",\"clientPrefix\":\"client-\",\"galleryRepo\":\"designs\",\"record\":\"on\"}"
+is "…and nothing else changes (the diff: one line added, the comma before it)" "$(diff "$RD/auto-none-out.json" "$RD/rec-on-out.json" | grep -E '^[<>]' | tr -d ' ' | tr '\n' ' ')" '<"galleryRepo":"designs" >"galleryRepo":"designs", >"record":"on" '
+is "…recordDays \"\" with on → still no recordDays key (the kit's 90 days)" "$(cmp -s "$RD/rec-on-out.json" "$RD/rec-on-days-empty-out.json" && echo same)" same
+is "record \"on\" + recordDays \"30\" → both, record then recordDays (last)" "$(rj "$RD/rec-on-days-out.json" "console.log(JSON.stringify(j.features['$FK']))")" "{\"org\":\"$ORG\",\"owner\":\"boss\",\"maxHours\":\"6\",\"clientPrefix\":\"client-\",\"galleryRepo\":\"designs\",\"record\":\"on\",\"recordDays\":\"30\"}"
+is "…the diff: two lines added, the comma before them" "$(diff "$RD/auto-none-out.json" "$RD/rec-on-days-out.json" | grep -E '^[<>]' | tr -d ' ' | tr '\n' ' ')" '<"galleryRepo":"designs" >"galleryRepo":"designs", >"record":"on", >"recordDays":"30" '
+is "auto + record + recordDays → in that order, after the rest" "$(rj "$RD/rec-auto-off-on-days-out.json" "console.log(Object.keys(j.features['$FK']).slice(-3).join(' ')+' '+j.features['$FK'].auto+' '+j.features['$FK'].recordDays)")" "auto record recordDays off 7"
+render "$tpl" "$RD/rec-on-days.json" "$RD/rec-on-days-out2.json" >/dev/null
+is "…rendered twice → byte-identical" "$(cmp -s "$RD/rec-on-days-out.json" "$RD/rec-on-days-out2.json" && echo same)" same
+printf '{"features":{"ghcr.io/stoilyhq/codespace/stoily:%s":{"record":"on","recordDays":"5","codexVersion":"1"}}}\n' "$MAJOR" > "$RD/tpl-rec.json"
+is "a template that carries record + recordDays → stoily.json decides (off drops both, the template's other options kept)" "$(render "$RD/tpl-rec.json" "$RD/rec-off.json" "$RD/tpl-rec-off-out.json" >/dev/null; rj "$RD/tpl-rec-off-out.json" "const f=j.features['$FK'];console.log(('record' in f)+' '+('recordDays' in f)+' '+f.codexVersion)")" "false false 1"
+is "…and absent drops both too" "$(render "$RD/tpl-rec.json" "$RD/stoily.json" "$RD/tpl-rec-none-out.json" >/dev/null; rj "$RD/tpl-rec-none-out.json" "const f=j.features['$FK'];console.log(('record' in f)+' '+('recordDays' in f))")" "false false"
+is "…\"on\" without recordDays keeps the template's recordDays out (the kit's 90 days)" "$(render "$RD/tpl-rec.json" "$RD/rec-on.json" "$RD/tpl-rec-on-out.json" >/dev/null; rj "$RD/tpl-rec-on-out.json" "const f=j.features['$FK'];console.log(f.record+' '+('recordDays' in f)+' '+f.codexVersion)")" "on false 1"
+has "a bad record value says what is allowed" "$(printf '{"org":"%s","record":"yes"}\n' "$ORG" > "$RD/bad.json"; render "$tpl" "$RD/bad.json" "$RD/bad-out.json")" '"record" = "yes" is not empty, "on" or "off"'
+has "a bad recordDays value says what is allowed" "$(printf '{"org":"%s","record":"on","recordDays":"1000"}\n' "$ORG" > "$RD/bad.json"; render "$tpl" "$RD/bad.json" "$RD/bad-out.json")" '"recordDays" = "1000" is not empty or whole days (1-999)'
+is "recordDays 1 and 999 (the bounds) → accepted" "$(rec ',"record":"on","recordDays":"1"' d1) $(rec ',"record":"on","recordDays":"999"' d999) $(rj "$RD/rec-d1-out.json" "console.log(j.features['$FK'].recordDays)") $(rj "$RD/rec-d999-out.json" "console.log(j.features['$FK'].recordDays)")" "0 0 1 999"
 printf '{"name":"x","features":{"ghcr.io/devcontainers/features/node:1":{}}}\n' > "$RD/nofeat.json"
 for k in 'ghcr.io/stoilyhq/codespace/stoily@sha256:0123' 'ghcr.io/stoilyhq/codespace/stoily'; do
   printf '{"features":{"ghcr.io/stoilyhq/codespace/stoily:2":{},"%s":{}}}\n' "$k" > "$RD/two.json"; printf '{"features":{"%s":{}}}\n' "$k" > "$RD/one.json"

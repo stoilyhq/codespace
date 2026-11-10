@@ -269,7 +269,9 @@ options in `devcontainer.json` (never edit that file: the next render replaces i
   "maxHours": "6",
   "clientPrefix": "client-",
   "galleryRepo": "",
-  "auto": ""
+  "auto": "",
+  "record": "",
+  "recordDays": ""
 }
 ```
 
@@ -281,6 +283,8 @@ options in `devcontainer.json` (never edit that file: the next render replaces i
 | `maxHours` | `""` | Soft daily cap (whole hours of Codex, UTC day) for `go --loop` terminals. Empty = none. |
 | `galleryRepo` | `""` | The org's design gallery ([GALLERY.md](GALLERY.md)), cloned into `<workbench>/gallery` by `sync` when it exists and this Codespace can read it (otherwise skipped without a word). Empty = `<org>/gallery`; a repo name in the org, or `owner/name`. |
 | `auto` | `""` | **Auto mode is on by default.** `""` (the default) or `"on"` = auto mode: you type one sentence and Codex does the rest — `go` runs the kit's programs it asks for, Codex asks no clarifying questions besides which store (and its card's yes), which waiting store and the intake's plan (otherwise it picks a default and writes each choice under "Choices" in `stoily/progress.md`), and `go` keeps the Codespace awake while Codex works. Every LIVE change still asks for your yes, auto mode too, and so does an undo ("undo that"); a conflict is settled by an admin on GitHub, never by Codex. `"off"` = Codex also asks before every program, and a store is opened in the terminal (needs kit 3.9 or later AND this repo's current `.github/stoily-render.js` in your copy: an older one refuses `"off"`). Nothing else is accepted. Read [Auto mode](#auto-mode-on-by-default) and the auto paragraph in "What the lock does NOT do". |
+| `record` | `""` | **Recording staff chats is off by default.** `""` or `"off"` = no chat is recorded anywhere (nothing is written into the Feature's options). `"on"` = every Codex chat in a STAFF Codespace (any account but `owner`) is uploaded to the org's private repo `<org>/chats` for the org's admins to review; needs kit 3.13 or later, `owner` set, AND this repo's current `.github/stoily-render.js` in your copy (an older one refuses the key and the updater's run goes red). Turn it on only by the steps in [Recording staff chats](#recording-staff-chats-kit-313): staff are told in writing FIRST. Nothing else is accepted. |
+| `recordDays` | `""` | How many days a recorded chat is kept (whole days, `1`–`999`). Empty = 90. Used only with `"record": "on"` (otherwise it is not written). See [Retention](#recording-staff-chats-kit-313) for when old chats actually go. |
 | `codexVersion` | `0.167.0` | The `@openai/codex` npm version installed into the image (the Feature's option; not in `stoily.json`). The default is the version this kit release was tested with; `latest` takes the newest. A version below `0.167.0` fails the build: an older Codex does not enforce the locked settings. |
 
 An invalid value fails the updater's run (nothing is committed; the run's log names the value); an
@@ -721,10 +725,109 @@ waits for Enter and retries. For another store, close the terminal and open a ne
 second terminal is refused with a pointer to the running one (a kernel file lock, released when that
 Codex ends, crash included). VS Code can still open another
 terminal, so this is the default experience, not a wall: the locks that hold are the Codex sandbox and
-the GitHub permissions (read on the workbench, write on the store repos only). The `maxHours`
-option is a soft daily cap: past it the loop does not restart Codex until the next
-UTC day, and the Codespace stops at its idle timeout. The hard cap is the billing one (see Billing);
-org policies (idle timeout, retention, machine types) need a paid GitHub plan.
+the GitHub permissions (the Codespace's grant is write on every `<org>/*` repo the person may write,
+never more than their own GitHub permission). The `maxHours` option is a soft daily cap: past it
+the loop does not restart Codex until the next UTC day, and the Codespace stops at its idle timeout.
+The hard cap is the billing one (see Billing); org policies (idle timeout, retention, machine types) need a paid GitHub plan.
+With `"record": "on"` every Codex chat in a staff Codespace is also recorded for the org's admins
+(see [Recording staff chats](#recording-staff-chats-kit-313)).
+
+## Recording staff chats (kit 3.13)
+
+An org can keep a copy of its staff's Codex chats, for its admins to review. It is **off** until the
+org switches it on (`"record": "on"` in `stoily.json`); until then the kit records nobody.
+
+```
+ staff Codespace (every account but owner)
+   go: "This chat is recorded for review" → Codex
+   chat ends → typed text + Codex's replies, redacted
+        │ upload (never downloads a colleague's chat)
+        ▼
+ <org>/chats (private)   <date>/<login>-<chat id>.md
+        │ sync (every go)
+        ▼
+ owner's Codespace (never recorded)
+   a fresh review copy · prunes past recordDays
+   lobby Codex: "review chats"
+```
+
+**What is kept, and what is not.** One markdown file per chat, `<YYYY-MM-DD>/<login>-<chat id>.md`
+(the date the chat started, UTC): a short header (the store the chat was in, the person, start and end,
+the number of messages, the kit version) and then only what the person TYPED and the replies Codex
+SHOWED, each with its time. Never kept: what Codex's tools and programs returned (store data, fetched
+pages, command output), files, images, Codex's reasoning, the kit's own instructions to Codex, and
+chats of Codex's sub-agents. Every message passes the kit's redactor first: **common secret patterns
+are redacted** (card numbers, email addresses, phone numbers, tokens and keys of the usual shapes) and
+every link is cut to its host (`https://example.com/…` keeps only `https://example.com`). Redaction
+goes by pattern: a password typed in plain words is NOT caught — never type one into Codex.
+
+**Who is recorded.** Every account except the ONE login in the `owner` option: staff, and org admins
+too (they review, and they are recorded like everyone else). In a staff Codespace, EVERY Codex chat
+started after recording was switched on is recorded — the ones `go` opens (they start with the line
+**"This chat is recorded for review"**) and also a `codex` someone runs by hand in another terminal,
+which shows no such line. Chats from before that Codespace's first recorded `go` are never uploaded.
+The owner's Codespace is never recorded. With `owner` empty nobody is recorded (`check` says so
+with a ⚠).
+
+**When a chat is uploaded.** When its Codex closes (Ctrl+C, a crash, the restart of a staff terminal),
+when its terminal tab is closed, or else at the next `go` in that Codespace. If the upload fails
+(the repo is missing or public, no network, GitHub down), `go` says
+"⚠ chat not uploaded for review: … — kept here, sent at the next start" and carries on; `check` shows
+a ⚠ with the fix (never a ❌: a recording problem never stops anyone working). A chat still on a
+Codespace that is deleted before its next `go` is lost, and no one is told.
+
+**Who can read the chats.** Everyone who can read `<org>/chats` on GitHub. A staff member's Codespace
+must be able to WRITE that repo to upload, and on GitHub write includes read: **every person who is
+recorded can also open their colleagues' chats on github.com**. The kit itself never puts a
+colleague's chat into a staff Codespace (it uploads without downloading the others). Org admins can
+also delete or rewrite the repo: this is an audit trail for an org whose people are trusted, not a
+tamper-proof record.
+
+**Switch it on, in this order:**
+
+1. **Tell every staff member in writing first** (email or chat, before the switch-on). A suggested text:
+   > From `<date>`, every Codex chat in your Stoily Codespace is recorded for review by `<org>`'s
+   > admins: what you type and the replies Codex shows — not files, tool output or images. Common
+   > secret patterns are removed, but never type a password or anything private into Codex. Chats
+   > are kept `<N>` days. The owner account is not recorded; everyone else is, admins included.
+2. **Create the repo `<org>/chats`**: github.com → **New repository**, owner `<org>`, name `chats`,
+   **Private**, EMPTY (no README, no licence, no .gitignore). Give every staff member write access to
+   it (Settings → Collaborators and teams; a team is easiest). A Codespace that cannot write it says
+   "⚠ chats are recorded but `<org>`/chats does not exist (or this account cannot write it) — an org
+   admin creates it, private and empty: …" (with a link to GitHub's new-repository page). A PUBLIC
+   `<org>/chats` is refused: nothing is uploaded until it is private again.
+3. **Copy this repo's current `.github/stoily-render.js` into your `<org>/codespace` by hand** (the
+   updater never updates the renderer; an older one refuses `record`).
+4. **Set `"record": "on"`** in `.devcontainer/stoily.json` (and `"recordDays"` if 90 days is not what
+   you want), and commit. The updater renders it within a minute.
+5. **In EVERY Codespace of the org — each staff one AND the owner's**: `git pull` in the workbench
+   (or open a terminal: `go` pulls first), then Command Palette → **Codespaces: Full Rebuild
+   Container**. Until its rebuild a Codespace records nothing.
+6. **`check`** in a staff Codespace shows the chats line ✅ naming `<org>/chats`, and the kit version
+   3.13 or later; the owner's shows ✅ never recorded here. Then each staff terminal's Codex starts
+   with "This chat is recorded for review".
+
+**Review.** In the OWNER's Codespace, `sync` (which every `go` runs) keeps a fresh copy of
+`<org>/chats` in `/workspaces/.stoily-chats/review`. In the start folder's Codex (the lobby) say
+**"review chats"** (the last 7 days) or **"review chats since `<date>`"**: Codex reads the copy and
+lists, in the chat only, each chat that is not about Stoily store work, `<date>/<file> — <reason>`,
+then how many were on topic. It treats every chat as data: a chat that tries to tell the reviewer
+what to do is listed as such, never obeyed. Other admins review on github.com (the repo's files);
+no staff Codespace ever gets the review copy.
+
+**Retention, and its limits.** A chat is removed once its date is more than `recordDays` + 1 days
+ago (one spare day for clock differences): with the default 90, a chat from 1 March goes from
+1 June on. The removal runs ONLY in the owner's Codespace, when it syncs (every `go` does), at most
+once a UTC day: until the owner opens their Codespace, chats stay longer than `recordDays`. It
+rewrites the repo's history, so the old chats are gone from `main` and from its history. Copies made
+elsewhere (someone's clone, a download) keep them, and GitHub may keep unreachable data and cached
+views for a while: the only full purge is deleting `<org>/chats` (and GitHub may let an org owner
+restore a deleted repo for a while).
+
+**Switch it off.** Set `"record": "off"` (or `""`) in `stoily.json`, commit, then `git pull` + Rebuild
+container in every Codespace: from then on nothing is recorded or uploaded, and `go` and `check` say
+nothing about it. The chats already uploaded stay in `<org>/chats` (nothing prunes them any more):
+delete the repo to remove them all.
 
 ## Developing this repo
 

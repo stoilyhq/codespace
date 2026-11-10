@@ -16,7 +16,12 @@
 //     (absent or "" adds nothing — the kit's default, which is ON from kit 3.9: the render is
 //     byte-identical to one without the key, and a kit older than 3.2, which does not declare auto,
 //     still builds; "on" writes "auto": "on"; "off" writes "auto": "off", which needs kit 3.9 or later:
-//     an older kit refuses it) (any other option of the template is kept as it is).
+//     an older kit refuses it); record ONLY when stoily.json sets it to "on" (absent, "" or "off" =
+//     recording off, the kit's default: no key at all, so the render is byte-identical to one without
+//     it; "on" writes "record": "on", which records staff Codex chats from kit 3.13 — an older kit
+//     records nobody), and recordDays ONLY with record "on" and a value set (otherwise no key: the
+//     kit keeps 90 days) (any other option of the template is kept as it is; a record or recordDays
+//     the template carries is replaced by what stoily.json says, so it is dropped when that is off).
 // Everything else comes from the template unchanged. A value that is not valid (the same rules as the
 // Feature's install-kit.sh), the placeholder YOUR-ORG, an unknown key or a template without exactly one
 // stoily Feature is refused: exit 1, nothing written. Same inputs → byte-identical output.
@@ -36,8 +41,12 @@ const RULES = {
   clientPrefix: [/^[a-z0-9][a-z0-9-]{0,30}$/, 'lowercase letters, digits and - (and not empty)'],
   galleryRepo: [/^$|^([A-Za-z0-9]([A-Za-z0-9-]{0,37}[A-Za-z0-9])?\/)?[A-Za-z0-9._-]{1,100}$/, 'empty, a repo name or owner/name'],
   auto: [/^$|^on$|^off$/, 'empty, "on" or "off"'],
+  record: [/^$|^on$|^off$/, 'empty, "on" or "off"'],
+  recordDays: [/^$|^[1-9][0-9]{0,2}$/, 'empty or whole days (1-999)'],
 };
-const DEFAULTS = { owner: '', maxHours: '', clientPrefix: 'client-', galleryRepo: '', auto: '' };
+const DEFAULTS = { owner: '', maxHours: '', clientPrefix: 'client-', galleryRepo: '', auto: '', record: '', recordDays: '' };
+// Options written only under a condition (below), never copied as they are.
+const CONDITIONAL = new Set(['auto', 'record', 'recordDays']);
 
 function die(msg) { process.stderr.write(`stoily-render: ${msg}\n`); process.exit(1); }
 
@@ -117,11 +126,20 @@ function main(argv) {
   if (!FEATURE_RE.test(keys[0])) die(`the template's stoily Feature ${JSON.stringify(keys[0])} is not ghcr.io/stoilyhq/codespace/stoily:<tag>`);
   const fk = keys[0];
   const opts = isObj(tpl.features[fk]) ? Object.assign({}, tpl.features[fk]) : {};
-  for (const k of Object.keys(RULES)) if (k !== 'auto') opts[k] = v[k];
+  for (const k of Object.keys(RULES)) if (!CONDITIONAL.has(k)) opts[k] = v[k];
   // auto: written only when "on" or "off"; "" = no key at all (the kit's default; never "auto": "",
   // which a 3.1 kit would refuse). "off" is the opt-out and needs kit 3.9 or later.
   delete opts.auto;
   if (v.auto === 'on' || v.auto === 'off') opts.auto = v.auto;
+  // record: written only when "on" ("", "off" and absent = off = no key: a kit older than 3.13 never
+  // sees it, and the render is byte-identical to one without it). recordDays: only with record "on"
+  // and a value (no key = the kit's 90 days). Deleted first, so a template's own value never counts.
+  delete opts.record;
+  delete opts.recordDays;
+  if (v.record === 'on') {
+    opts.record = 'on';
+    if (v.recordDays !== '') opts.recordDays = v.recordDays;
+  }
   tpl.features[fk] = opts;
 
   // ── the ONE Codespaces grant: <org>/* (built fresh: no other grant survives) ──
