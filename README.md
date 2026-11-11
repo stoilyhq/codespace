@@ -753,16 +753,17 @@ org switches it on (`"record": "on"` in `stoily.json`); until then the kit recor
 
 **What is kept, and what is not.** One markdown file per chat, `<YYYY-MM-DD>/<login>-<chat id>.md`
 (the UTC day of its first recorded message): a short header (the store the chat was in, the person,
-start and end, the number of messages, how it ended, the kit version, and the line "typed messages
-and Codex's visible replies only; common secret patterns redacted") and then only what the person
-TYPED and the replies Codex SHOWED, each with its time. The text `go` itself gives Codex to start a
-chat is not kept: it shows as one line, `[go start prompt: N chars not shown]`. Never kept: what
-Codex's tools and programs returned (store data, fetched pages, command output), files, images,
-Codex's reasoning, the kit's own instructions to Codex, and chats of Codex's sub-agents. Every
-message passes the kit's redactor first: **common secret patterns are redacted** (card numbers, email
-addresses, phone numbers, tokens and keys of the usual shapes each become `[redacted]`) and every
-link is cut to its host (`https://example.com/…` keeps only `https://example.com`). Redaction goes
-by pattern: a password typed in plain words is NOT caught — never type one into Codex.
+start and end, the number of messages, how it ended, the kit version, and the line
+"typed messages and Codex's visible replies only; common secret patterns redacted") and then only
+what the person TYPED and the replies Codex SHOWED, each with its time. The text `go` itself gives
+Codex to start a chat is not kept: it shows as one line, `[go start prompt: N chars not shown]`.
+Never kept: what Codex's tools and programs returned (store data, fetched pages, command output),
+files, images, Codex's reasoning, the kit's own instructions to Codex, and chats of Codex's
+sub-agents. Every message passes the kit's redactor first: **common secret patterns are redacted**
+(card numbers, email addresses, phone numbers, tokens and keys of the usual shapes each become
+`[redacted]`) and every link is cut to its host (`https://example.com/…` keeps only
+`https://example.com`). Redaction goes by pattern: a password typed in plain words is NOT caught —
+never type one into Codex.
 
 **Who is recorded.** Every account except the ONE login in the `owner` option: staff, and org admins
 too (they review, and they are recorded like everyone else). In a staff Codespace, EVERY Codex chat
@@ -796,9 +797,11 @@ problem never stops anyone working). A chat still on a Codespace that is deleted
 **Who can read the chats.** Everyone who can read `<org>/chats` on GitHub. A staff member's Codespace
 must be able to WRITE that repo to upload, and on GitHub write includes read: **every person who is
 recorded can also open their colleagues' chats on github.com**. The kit itself never puts a
-colleague's chat into a staff Codespace (it uploads without downloading the others). Org admins can
-also delete or rewrite the repo: this is an audit trail for an org whose people are trusted, not a
-tamper-proof record.
+colleague's chat into a staff Codespace: to upload, it fetches only the list of file names in the
+repo (so colleagues' logins, chat ids and dates), never their text. **Write also means delete:
+every recorded person, not only the org admins, can delete or edit any chat in `<org>/chats`, their
+own or a colleague's, on github.com or with a push from their Codespace.** This is an audit trail
+for an org whose people are trusted, not a tamper-proof record.
 
 **Switch it on, in this order:**
 
@@ -817,7 +820,8 @@ tamper-proof record.
 3. **Copy this repo's current `.github/stoily-render.js` into your `<org>/codespace` by hand** (the
    updater never updates the renderer; an older one refuses `record`).
 4. **Set `"record": "on"`** in `.devcontainer/stoily.json` (and `"recordDays"` if 90 days is not what
-   you want), and commit. The updater renders it within a minute.
+   you want), and commit. The `owner` option there must name the owner's GitHub login: with it empty,
+   nobody is recorded. The updater renders it within a minute.
 5. **In EVERY Codespace of the org — each staff one AND the owner's**: `git pull` in the workbench
    (or open a terminal: `go` pulls first), then Command Palette → **Codespaces: Full Rebuild
    Container**. Until its rebuild a Codespace records nothing.
