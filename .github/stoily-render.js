@@ -12,7 +12,8 @@
 //   - customizations.codespaces.repositories = { "<org>/*": { permissions: { contents: write } } }
 //     (the ONE Codespaces grant: any other grant in the template is dropped);
 //   - the options of the stoily Feature (ghcr.io/stoilyhq/codespace/stoily:<major>): org, owner,
-//     maxHours, clientPrefix, galleryRepo, and auto ONLY when stoily.json sets it to "on" or "off"
+//     maxHours, clientPrefix (still validated and written; kit 3.15 and later name no repo by it),
+//     galleryRepo, and auto ONLY when stoily.json sets it to "on" or "off"
 //     (absent or "" adds nothing — the kit's default, which is ON from kit 3.9: the render is
 //     byte-identical to one without the key, and a kit older than 3.2, which does not declare auto,
 //     still builds; "on" writes "auto": "on"; "off" writes "auto": "off", which needs kit 3.9 or later:

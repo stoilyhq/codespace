@@ -1,9 +1,10 @@
 {
   // The Stoily Codespace TEMPLATE. In your org's copy this file is GENERATED: the updater
   // (.github/workflows/stoily-update.yml) renders it from this template + your .devcontainer/stoily.json
-  // (the org, owner, maxHours, clientPrefix, galleryRepo) — edit stoily.json, never this file.
-  // Everything else (Codex, its locked config, the rules, the programs go/work/save/sync/new-client/check)
-  // comes from the stoily Feature, pulled again on every Codespace creation and every Rebuild container:
+  // (the org, owner, maxHours, clientPrefix, galleryRepo; kit 3.15 and later name no repo by clientPrefix)
+  // — edit stoily.json, never this file. Everything else (Codex, its locked config, the rules, the
+  // programs go/work/save/sync/open-store/check) comes from the stoily Feature, pulled again on every
+  // Codespace creation and every Rebuild container:
   // ":3" = the newest 3.x, never a breaking change. See https://github.com/stoilyhq/codespace
   "name": "Stoily Codespace",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
@@ -21,7 +22,7 @@
   "hostRequirements": { "cpus": 2, "memory": "8gb", "storage": "32gb" },
   "customizations": {
     "codespaces": {
-      // Write access to your org's repos (the client repos). GitHub reads this before the container
+      // Write access to your org's repos (the store repos). GitHub reads this before the container
       // exists, so it cannot come from the Feature: the updater writes "<org>/*" from stoily.json.
       "repositories": {
         "YOUR-ORG/*": { "permissions": { "contents": "write" } }
