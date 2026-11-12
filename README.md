@@ -185,7 +185,7 @@ agency), each person's own Stoily role on each store, and GitHub's repo permissi
 |---|---|
 | `go` | the whole first run in order (pull → setup → store → check → logins → check → Codex); stops at the first ❌. Runs by itself in a new Codespace's first terminal; with no store open yet it opens the lobby, where you say "open a store" |
 | `check` | prove the lock (no AI, no sign-in) |
-| `work [<folder>]` | one tmux session `stoily`: a window per store folder (or just that one) |
+| `work [<folder>]` | a window per store folder (or just that one) inside the one tmux session `stoily`, the session Codex runs in (kit 3.16); `Ctrl-b w` switches window |
 | `sync` | clone / pull every store: each `<org>/stoily-store-<storeId>` repo, and each older `<org>/store-<storeId>` or `<org>/client-<name>` repo, this Codespace can see (a store kept in this Codespace only is neither pulled nor an error) |
 | `save "<what>"` | commit `stoily/` + `AGENTS.md`, push the store's repo (as you; a store kept in this Codespace only is committed here and pushed nowhere, with one ℹ line); after a conflict, your version goes to a `conflict/…` branch on GitHub and an admin settles it there ([Who changed what](#who-changed-what-and-undo)) |
 | `save --design <name>` | publish the design Codex wrote to `stoily/designs/<name>/` into the org's gallery repo (validated, only that directory) |
@@ -673,14 +673,21 @@ credited from `stoily/assets/sources.json`).
 - New terminal → Codex opens (auto mode; "continue `<store>`" picks a store, after its card's yes).
   Where terminals keep a shell (the owner's, or everyone's when `owner` is empty), closing Codex leaves
   a plain shell: type `work` (every store) or `work <folder>` for one tmux window per store folder.
-  The `work?` prompt (`*`, a folder's name, or Enter for a plain shell) appears instead with auto off,
-  or when another terminal is still setting up or signing in.
-- One Codex at a time (kit 3.12): opening a new terminal moves Codex there. The old terminal's Codex
-  closes (a save it is running finishes first) and it prints "Codex moved to the newer terminal"; the
-  new one opens Codex in the same store, with a fresh chat. A terminal that is still setting up or
-  signing in is never interrupted. In a staff terminal (`go --loop`) that says Codex is already open,
-  open another terminal to move it.
-  `Ctrl-b <n>` switches window, `Ctrl-b d` detaches.
+  The `work?` prompt (`*`, a folder's name, or Enter for a plain shell) appears instead with auto off.
+- One Codex, one tmux session (kit 3.16): Codex runs inside one tmux session, `stoily`. Opening a new
+  terminal moves the RUNNING Codex there: the same chat, even mid-answer, nothing restarts. The old
+  terminal says "Codex moved to a newer terminal — it keeps running there. Press Enter to bring it
+  back here." A terminal opened while another is still setting up or signing in waits, then joins it.
+- Another store: tell Codex "open a store" (or "continue `<store>`"), or exit Codex to get the lobby
+  in the same terminal.
+- **Closing a tab does not stop Codex**, but KEEP ONE TAB OPEN while Codex works: with every tab
+  closed the Codespace may stop after its idle timeout, even mid-answer. It stays awake only while
+  Codex is actively working in an open terminal.
+- In a `work` window: `Ctrl-b w` lists the windows, `Ctrl-b <n>` switches, `Ctrl-b d` detaches.
+- Off switch: `STOILY_NO_TMUX=1` gives the behaviour before 3.16: no tmux, and a new terminal starts
+  a fresh Codex in the same store while the old one closes. Set it in `~/.bashrc` (the owner's
+  terminals), as a Codespace secret, or in the template's `containerEnv`/`remoteEnv`. A secret added
+  while the Codespace is running takes effect after a restart. It only matters inside a Codespace.
 - In a store window: `codex` and ask. Its first line names the store ("You are working on `<name>` —
   `<domain>`"). It snapshots before and after into `stoily/` and writes
   drafts. Then run `save "what changed"` (or approve Codex running it). Publish the drafts in
@@ -743,8 +750,9 @@ credited from `stoily/assets/sources.json`).
   otherwise the merchant publishes in Stoily).
 - **Snapshots are best-effort.** The AI writes what the tools return. A page over 200 KB comes back
   truncated; its snapshot is marked `"_incomplete": true` and is never used to restore.
-- **The Codespace stops at its idle timeout even with tmux running**, and a running Codex task stops
-  with it. Create the Codespace with a 240-minute idle timeout (GitHub settings → Codespaces →
+- **The Codespace stops at its idle timeout even with Codex running in tmux**, and a running Codex task
+  stops with it. Closing every tab does not stop Codex at once, but nothing then keeps the Codespace
+  awake: keep one tab open while Codex works. Create the Codespace with a 240-minute idle timeout (GitHub settings → Codespaces →
   Default idle timeout, up to 4 hours, BEFORE you create it: GitHub cannot change an existing
   Codespace's timeout). With auto mode on (the default), `go` keeps the Codespace awake only while
   Codex is working; with `"auto": "off"`, nothing does. An org-wide idle policy needs a paid plan.
@@ -789,8 +797,10 @@ every new terminal runs `go --loop`: pull, setup, check, the logins, then Codex.
 signs in and opens the lobby just like the owner's terminal — no stop: say "open a store" or
 "continue `<store>`", then yes to its card. From then on Codex works in that store, and every time Codex exits (Ctrl+C, a
 crash) the store folder is saved to GitHub (`save`) and Codex opens again in the same store; a ❌
-waits for Enter and retries. For another store, close the terminal and open a new one. Only one `go` runs per Codespace: a
-second terminal is refused with a pointer to the running one (a kernel file lock, released when that
+waits for Enter and retries. For another store, tell Codex "open a store" (or "continue `<store>`").
+A staff terminal is Codex only, with no tmux keys: when you exit Codex your work is saved and Codex
+opens again, and closing a tab keeps Codex running (keep one tab open while it works, as above). Only one Codex runs per Codespace:
+a second terminal takes the running Codex over, the same chat (a kernel file lock, released when that
 Codex ends, crash included). VS Code can still open another
 terminal, so this is the default experience, not a wall: the locks that hold are the Codex sandbox and
 the GitHub permissions (the Codespace's grant is write on every `<org>/*` repo the person may write,
@@ -849,10 +859,10 @@ on, but this Codespace's GitHub login (GITHUB_USER) is not known — nothing is 
 - **Codex ends by itself** (Ctrl+C, `/quit`, a crash): `go` uploads the chat before it opens Codex
   again and says "chat uploaded for review". It waits at most 5 seconds: a slower upload carries on
   by itself, `go` says "the chat upload for review goes on in the background", and Codex opens.
-- **The terminal tab is closed** with Codex open: the upload runs in the background. Nobody waits,
-  and nothing is shown.
-- **A newer terminal takes Codex over:** the old terminal does nothing; the newer terminal's `go`
-  uploads the chat when it starts (the same 5-second limit), before its own Codex opens.
+- **While Codex is open** (kit 3.16): every 10 minutes, in the background, silently; also whenever a
+  terminal opens or joins Codex, and when Codex closes. Closing the tab does not stop Codex, so the
+  chat keeps uploading. A chat still open is uploaded as it stands and replaced as it grows.
+- **A newer terminal takes Codex over:** it is the same chat; that terminal uploads it when it joins.
 - **Anything else** (a `codex` run by hand, a Codespace that stopped): at the next `go` in that
   Codespace.
 
