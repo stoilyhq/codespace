@@ -78,21 +78,22 @@ matter are also pinned by **`/etc/codex/requirements.toml`**, a file owned by ro
 reads on every start and runs under, whatever `~/.codex/config.toml`, a `-c` flag or `CODEX_HOME` says.
 Codex does not refuse another value: it runs with the allowed one instead and says so at start
 (`codex doctor` lists it as a startup warning). The kit installs it, the same for every org (no option changes it), and it holds
-exactly these 7 settings (the file also has a few `#` comment lines and blank lines, 14 lines in all;
+exactly these 7 settings (the file also has a few `#` comment lines and blank lines, 16 lines in all;
 `check` proves it is byte-equal to the kit's own copy):
 
 ```toml
 allowed_approval_policies = ["on-request"]
 allowed_sandbox_modes = ["read-only", "workspace-write"]
 allowed_web_search_modes = ["cached"]
-[mcp_servers.stoily]
+[mcp_servers.Stoily]
 identity = { command = "/usr/local/share/stoily-codespace/libexec/stoily" }
 [permissions.filesystem]
 deny_read = ["/workspaces/.stoily-kit/**", "~/.stoily-kit/**"]
 ```
 
 That is: Codex always asks before leaving its sandbox, never runs without one, searches only the cached
-web index, has the kit's `stoily` program as its ONLY MCP server (any other server is switched off), and
+web index, has the kit's `stoily` program as its ONLY MCP server (Codex names it **Stoily** since kit 3.16.1;
+any other server is switched off), and
 its sandbox cannot read the kit's Stoily sign-in. Nothing in it concerns the ChatGPT sign-in: sign in
 to ChatGPT as before.
 
@@ -117,8 +118,9 @@ The honest limits — this is a lock on Codex, not on the person at the keyboard
   their own terminal.
 - **The rules are a strong default, not a wall.** "Stoily store work only" (anything else is declined
   in one line: `I only work on Stoily stores here.`), the store card's yes and the yes before every
-  live change are Codex's rules, and Codex's own approval prompt on a live call is set in the kit's
-  `config.toml`: a person can talk Codex out of the first and edit the second. The walls are the kit's check on
+  live change are Codex's rules, and Codex's own approval prompt on a Stoily tool (since kit 3.16.1
+  only before `create_store` and `publish_all_drafts`) is set in the kit's `config.toml`: a person can talk Codex
+  out of the first and edit the second. The walls are the kit's check on
   every call (this folder's store only), each person's own Stoily role on each store, and GitHub's repo
   permissions.
 
@@ -128,7 +130,7 @@ The honest limits — this is a lock on Codex, not on the person at the keyboard
   `~/.codex/`) except the kit's Stoily sign-in; the sandbox limits writes and shell network, not reads.
 - **Codex can ASK to run a command outside its sandbox** (approval "on request"). A yes gives that
   command the network and the Codespace's GitHub access. Answer No to everything except the kit's
-  `save`, `photos`, `upload-images <host>` and `site-check <host>` — and read the command line first: exactly
+  `save`, `photos`, `upload-images <host>`, `site-check <host>`, `shots <host>` and `language <code>` — and read the command line first: exactly
   that program, no `&&`, no other program, no environment variable in front of it. `site-check`'s line
   names the host it will reach: approve it only when that is THIS store's storefront (a host outside
   Stoily's store zone also needs `--custom-domain` on the line). Any helper approval is also a
@@ -136,8 +138,9 @@ The honest limits — this is a lock on Codex, not on the person at the keyboard
   `plan.json`). What each one binds to: `photos` → Wikimedia Commons only (its API, its files on
   upload.wikimedia.org and its previews on thumb.wikimedia.org; and the licence Commons states); `upload-images <host>` → only the host named on its line, which must be the folder's
   committed HOST, and only images it re-encoded itself (re-encoding strips metadata and appended
-  bytes — it is not a content guard: data hidden in the pixels survives); `site-check` → only the
-  host named on its line. `save` refuses to re-bind a folder: a folder's STORE_ID never changes, and
+  bytes — it is not a content guard: data hidden in the pixels survives); `site-check` and `shots` → only the
+  host named on its line (this store's own); `language` → only `zh-HK` or `off`, this Codespace's reply
+  language (nothing else changes). `save` refuses to re-bind a folder: a folder's STORE_ID never changes, and
   a change to STORE_ID, NAME or HOST in `AGENTS.md` is refused (the kit refreshes NAME and HOST from
   Stoily itself).
 - **The Stoily sign-in is the kit's, not Codex's.** It lives in `/workspaces/.stoily-kit/` (private
@@ -145,26 +148,40 @@ The honest limits — this is a lock on Codex, not on the person at the keyboard
   Codex's sandbox reading it. What still reaches it: a command you approve to run OUTSIDE the sandbox
   (it runs as you — another reason to answer No to anything but the kit's programs), and anyone at the
   keyboard. A Codex steered by injected text can still put what it has read into what it writes to
-  THIS store (a page, a product, an image) or into a helper's input; the asks, the fixed hosts and the
-  kit's per-call store check narrow that, they do not close it. So: one Codespace per Stoily identity,
+  THIS store (a page, a product, an image) or into a helper's input; the chat yes before each LIVE
+  change (a rule Codex keeps, not code), the fixed hosts and the kit's per-call store check narrow
+  that, they do not close it. So: one Codespace per Stoily identity,
   and the least role that does the job.
 - **Web search results are an injection surface.** A page Codex finds can carry text written to
   steer it ("call this tool…"). The rules tell Codex that results are data, never instructions, and
-  `check` does not measure web search (it is Codex's own tool, not the shell): the walls are the
-  asks on every LIVE write and the store's own role.
+  `check` does not measure web search (it is Codex's own tool, not the shell): what holds is the
+  kit's per-call store check, Codex's own click before `create_store` and `publish_all_drafts`, and
+  your own role on the store (the chat yes before the other LIVE writes is a rule, not a wall: see below).
 - **The Stoily tools are a channel out.** Draft writes (pages, menus, page meta, header/footer) do not
   ask, so anything Codex has read could end up in a draft of the current store — for example after a
   fetched page told it to (the rules tell Codex never to follow fetched text, but a rule is not a wall).
+- **Most LIVE tools ask in the chat, not in code** (kit 3.16.1, auto mode on and off alike). Codex
+  itself asks (a click) only before `create_store` and `publish_all_drafts`. The other ten LIVE tools
+  (store settings and language, categories, products, product images, the logo, `create_image_upload`,
+  `upload_image`) and every draft tool run with no Codex click: the only gate before a LIVE one is
+  your yes in the chat, which Codex keeps by its rules, not by code. Text that steers Codex (a fetched
+  page, `source/`, `stoily/inputs/`, a tool answer) can therefore become a LIVE price, setting, logo or
+  upload. Under `codex exec` those ten would run too (the rules call no live tool there: nobody can give
+  the yes). What stays enforced: the click before creating a store and publishing, the tool allow-list,
+  the kit's per-call store check (one store per folder; the lobby only lists stores and shows a card),
+  the locked settings, every write recorded with an undo snapshot, and Stoily's own limits (publishing
+  only a pre-launch store this connection created; the daily upload quota).
 - **Codex never starts in the workbench itself** (it holds every store folder): with no store open
   yet (`go` or `work` with no store) it starts in an empty `~/stoily-lobby`, where it can only list
   your stores and show a store's card. Do not start `codex` by hand in the workbench folder.
 - **Auto mode (on by default; `"auto": "off"` turns it off) removes the human check on the kit's
   PROGRAMS.** Everything above about reading the command line before you approve stops applying to
   them: Codex asks `go` for them instead of you, and `go` runs them (`save`, `photos`,
-  `upload-images`, `site-check`, `fetch-site`, `shots` in a store folder; only `open-store` (or its
-  older name `new-client`) and `move` in the lobby) with their network and the Codespace's GitHub
-  access. The LIVE Stoily changes still ask, auto mode too: Codex shows what will change and waits
-  for your yes, then Codex itself asks for approval of the call. Whatever Codex writes into a
+  `upload-images`, `site-check`, `fetch-site`, `shots` and `language` in a store folder; only
+  `open-store` (or its older name `new-client`), `move` and `language` in the lobby) with their network
+  and the Codespace's GitHub access. The LIVE Stoily changes ask exactly as with auto off: Codex shows
+  what will change and waits for your yes in the chat (Codex's own click comes only before
+  `create_store` and `publish_all_drafts`). Whatever Codex writes into a
   program's input or arguments goes out unread.
   `fetch-site` makes it wider: it reaches any URL, so a
   page Codex fetches can carry text that steers it, and the next fetch can carry what Codex read.
@@ -196,6 +213,7 @@ agency), each person's own Stoily role on each store, and GitHub's repo permissi
 | `photos fetch <plan.json>` / `photos finish <picks.json>` | licence-safe photos from Wikimedia Commons: previews + contact sheets in `source/photos/`, then crops in `stoily/assets/` + credits in `stoily/assets/sources.json` |
 | `upload-images sizes` / `upload-images <host>` | `sizes` (offline, Codex runs it): the re-encoded size of each `stoily/assets/` image, for `create_image_upload`. `<host>`: send each image, RE-ENCODED (never the file as read; metadata stripped, not a content guard), to the one-shot upload URLs in `stoily/assets/uploads.json` — only `…/uploads/<host>/<token>` URLs, `<host>` = this folder's COMMITTED HOST (no sign-in read) |
 | `site-check <host> [--custom-domain]` | read the live storefront against `stoily/site-check.json`: `<host>` must be this folder's HOST (and on Stoily's store zone, else `--custom-domain`); a table, exit 1 on a ❌ |
+| `language zh-HK` / `language off` / `language` | this Codespace's reply language (kit 3.15.2): `zh-HK` = Codex replies in Hong Kong written Chinese, `off` = as before, no argument = show it. Chat only, never the store's own language ([Reply language](#reply-language-kit-3152)) |
 | `logo <in.svg> <out.png>` | render an SVG wordmark (Chinese via Noto CJK HK) to a PNG, offline — Codex runs it in its sandbox |
 | `setup` | re-apply the lock (the Feature runs it on create and on every start) |
 
@@ -291,10 +309,10 @@ options in `devcontainer.json` (never edit that file: the next render replaces i
 |---|---|---|
 | `org` | (required) | GitHub org of the store repos; the updater also writes the `<org>/*` Codespaces grant from it (`check` fails if the two ever differ). `YOUR-ORG` is refused. |
 | `clientPrefix` | `client-` | Declared but ignored for naming since kit 3.15: older `client-<name>` and `store-<storeId>` repos are recognised whatever it says, and a new store is always `<org>/stoily-store-<storeId>`. (An older org's own non-default prefix, `<org>/<clientPrefix><name>`, is still read; nothing is ever created under it.) Keep the key (an org's config still sends it); never empty (the updater refuses `""`). |
-| `owner` | `""` | GitHub login whose terminals keep a shell (Codex opens there too; closing it leaves a shell or the `work?` prompt). Every other account's terminal is Codex only (`go --loop`): saved and reopened when it closes. Empty = everyone keeps a shell. Optional: nothing needs it set. |
+| `owner` | `""` | GitHub login whose terminals keep a shell (Codex opens there too; closing it leaves a shell or the `work?` prompt). Every other account's terminal is Codex only (`go --loop`): saved when Codex closes, then the start folder opens (auto mode, kit 3.16.1; auto off: the same store again — [Staff terminals](#staff-terminals-are-codex)). Empty = everyone keeps a shell. Optional: nothing needs it set. |
 | `maxHours` | `""` | Soft daily cap (whole hours of Codex, UTC day) for `go --loop` terminals. Empty = none. |
 | `galleryRepo` | `""` | The org's design gallery ([GALLERY.md](GALLERY.md)), cloned into `<workbench>/gallery` by `sync` when it exists and this Codespace can read it (otherwise skipped without a word). Empty = `<org>/gallery`; a repo name in the org, or `owner/name`. |
-| `auto` | `""` | **Auto mode is on by default.** `""` (the default) or `"on"` = auto mode: you type one sentence and Codex does the rest — `go` runs the kit's programs it asks for, Codex asks no clarifying questions besides which store (and its card's yes), a new store's name, the repo question (a store with no GitHub repo yet), which waiting store and the intake's plan (otherwise it picks a default and writes each choice under "Choices" in `stoily/progress.md`), and `go` keeps the Codespace awake while Codex works. Every LIVE change still asks for your yes, auto mode too, and so does an undo ("undo that"); a conflict is settled by an admin on GitHub, never by Codex. `"off"` = Codex also asks before every program, and a store is opened in the terminal (needs kit 3.9 or later AND this repo's current `.github/stoily-render.js` in your copy: an older one refuses `"off"`). Nothing else is accepted. Read [Auto mode](#auto-mode-on-by-default) and the auto paragraph in "What the lock does NOT do". |
+| `auto` | `""` | **Auto mode is on by default.** `""` (the default) or `"on"` = auto mode: you type one sentence and Codex does the rest — `go` runs the kit's programs it asks for, Codex asks no clarifying questions besides which store (and its card's yes), a new store's name, the repo question (a store with no GitHub repo yet), which waiting store and the intake's plan (otherwise it picks a default and writes each choice under "Choices" in `stoily/progress.md`), and `go` keeps the Codespace awake while Codex works. Every LIVE change still asks for your yes in the chat, auto mode too (the demo brief's NEW products excepted), and so does an undo ("undo that"); a conflict is settled by an admin on GitHub, never by Codex. `"off"` = Codex also asks before every kit program, and a store is opened in the terminal; the Stoily tools ask the same in both modes (your yes in the chat; Codex's own click only before `create_store` and `publish_all_drafts`, kit 3.16.1) (needs kit 3.9 or later AND this repo's current `.github/stoily-render.js` in your copy: an older one refuses `"off"`). Nothing else is accepted. Read [Auto mode](#auto-mode-on-by-default) and the auto paragraph in "What the lock does NOT do". |
 | `record` | `""` | **Recording staff chats is off by default.** `""` or `"off"` = no chat is recorded anywhere (nothing is written into the Feature's options). `"on"` = every Codex chat in a STAFF Codespace (any account but `owner`) is uploaded to the org's private repo `<org>/chats` for the org's admins to review; needs kit 3.13 or later, `owner` set, AND this repo's current `.github/stoily-render.js` in your copy (an older one refuses the key and the updater's run goes red). Turn it on only by the steps in [Recording staff chats](#recording-staff-chats-kit-313): staff are told in writing FIRST. Nothing else is accepted. |
 | `recordDays` | `""` | How many days a recorded chat is kept (whole days, `1`–`999`). Empty = 90. Used only with `"record": "on"` (otherwise it is not written). See [Retention](#recording-staff-chats-kit-313) for when old chats actually go. |
 | `codexVersion` | `0.167.0` | The `@openai/codex` npm version installed into the image (the Feature's option; not in `stoily.json`). The default is the version this kit release was tested with; `latest` takes the newest. A version below `0.167.0` fails the build: an older Codex does not enforce the locked settings. |
@@ -341,10 +359,14 @@ said in Codex — no terminal:
   ("set up a client", "add a client" and "set up a store" mean the same). Codex lists your Stoily
   stores by number; answer with the number, the name or the domain. Codex shows that store's card and
   asks "Is this the store? Say yes to open it." Only a yes opens it — yes, y, yeah, yep, correct,
-  that's it, 是, 對, 对; a number or a name only shows a card. Codex takes the store's id from Stoily:
+  that's it, ok, okay, 是, 對, 对, 係, 好, 好的, 可以, 確定, 确定, 同意, 冇問題, 無問題, 沒問題, 没问题 (the
+  whole reply, in any case; a trailing 呀, 啊, 喇, 啦, 吖, 囉, la, !, ！, 。, . or ~ is fine, so 好呀 and OK! count;
+  a reply with a negation or a question in it, such as 唔確定 or 好唔好？, never does; kit 3.15.2); a
+  number or a name only shows a card. Codex takes the store's id from Stoily:
   you never type it, and you never name the store (Stoily does). A store with no GitHub repo yet gets
   the repo question next (above): yes = its private repo `<org>/stoily-store-<storeId>`; no = its
-  work stays in this Codespace only (no, n, nope, 不, 不要, 唔要; anything else is asked again). Then
+  work stays in this Codespace only (no, n, nope, 不, 不要, 唔要, 否, 唔好, 不用, 唔使; anything else is
+  asked again). Then
   Codex opens the store: describe
   the site in your own words and approve the plan. You can also say it all at once ("open
   `<store>`: a shop for handmade clocks") or name a brief ("open `<store>`, build demo-store", a
@@ -363,8 +385,11 @@ said in Codex — no terminal:
 - **Every LIVE change asks, auto mode too.** Before each one (a price, a product, a category, the
   logo, an image, a store setting, creating a store, publishing) Codex says in plain words what will
   change on `<name>` — `<domain>` (before → after), ending "— yes to go ahead?", and waits for your
-  yes; one yes covers the one list it showed you. Codex then shows its own approval prompt for the
-  call. Creating a store and publishing always get a yes of their own.
+  yes; one yes covers the one list it showed you. Creating a store and publishing always get a yes of
+  their own, and only those two also get Codex's own approval prompt (a click; kit 3.16.1): every other
+  live change runs on your yes in the chat alone, the same with auto off. The one exception to the
+  yes: while Codex follows the kit's demo brief on a store it created itself, it makes the demo's NEW
+  products (prices included) with no yes and lists them after.
 - Besides those (which store and its card's yes, a new store's name, the repo question, which
   waiting store, the intake's plan, each live change's yes), Codex never asks: where something is
   not said, it picks the default and records each choice under "Choices" in `stoily/progress.md`.
@@ -379,8 +404,8 @@ said in Codex — no terminal:
   you create it (or `gh codespace create --idle-timeout 4h`). Auto keeps the Codespace awake only
   while Codex is working (a session active in the last 30 minutes); after that it stops at its
   timeout as usual.
-- **Turning it off:** set `"auto": "off"` in `stoily.json`. Codex then also asks before every
-  program, and a store is opened in the terminal (`open-store`, see
+- **Turning it off:** set `"auto": "off"` in `stoily.json`. Codex then also asks before every kit
+  program (the Stoily tools ask exactly as in auto mode), and a store is opened in the terminal (`open-store`, see
   [A new store](#a-new-store)). Only this needs your org's copy of
   `.github/stoily-render.js` to be this version (the updater does not update it; an older one refuses
   `"off"`): copy it from this repo first.
@@ -678,8 +703,10 @@ credited from `stoily/assets/sources.json`).
   terminal moves the RUNNING Codex there: the same chat, even mid-answer, nothing restarts. The old
   terminal says "Codex moved to a newer terminal — it keeps running there. Press Enter to bring it
   back here." A terminal opened while another is still setting up or signing in waits, then joins it.
-- Another store: tell Codex "open a store" (or "continue `<store>`"), or exit Codex to get the lobby
-  in the same terminal.
+- Another store: exit Codex (`/quit`; a store's Codex tells you the same when you ask it for another
+  store): the start folder (the lobby) opens in the same terminal; say "open a store" or "continue
+  `<store>`" there (auto mode; staff terminals too since kit 3.16.1, see
+  [Staff terminals are Codex](#staff-terminals-are-codex)).
 - **Closing a tab does not stop Codex**, but KEEP ONE TAB OPEN while Codex works: with every tab
   closed the Codespace may stop after its idle timeout, even mid-answer. It stays awake only while
   Codex is actively working in an open terminal.
@@ -706,6 +733,23 @@ credited from `stoily/assets/sources.json`).
   already cloned.
 - A brief: in a store's Codex say "build demo-store" (the kit's example) or "build `<brief>`" (yours, in
   `prompts/`). In a terminal: `go -b demo-store <folder>` or `go -b prompts/<brief>.md <folder>`.
+- The demo's products are live and in stock (quantity 99, kit 3.16.1): add to cart and the cart page
+  are fine to test, but **never place an order** on a demo store. Any order permanently ends Codex
+  publishing on that store (Stoily publishes only a store with no orders), and check/money order
+  needs no payment (Codex cannot switch it off).
+
+## Reply language (kit 3.15.2)
+
+Codex can keep replying in Hong Kong written Chinese: run `language zh-HK` in a terminal (or ask in
+your own words in the chat, e.g. 以後一律用香港繁體中文回覆, and Codex asks for it: auto mode runs it
+through `go`, auto off asks you first), and `language off` for English again; `language` alone shows
+the setting. It is kept for THIS Codespace only (a Stop/Start and a Rebuild keep it; another Codespace
+is not affected, and it is never in git) and every new Codex session starts with it (when Codex asked for it
+itself, it switches at once). It changes the chat only: never files, commit messages or the
+store's own language (that is "set the store language to …", a LIVE change that asks for its yes).
+Lines the kit gives word for word (the store card, the repo question) stay in English, with at most
+one line in Chinese after them, and the commands you type stay English ("open a store", "done").
+The yes words include Hong Kong ones (係, 好, 可以, 確定, 好呀 …); a reply such as 唔確定 is asked again.
 
 ## Known limits — read once
 
@@ -738,12 +782,15 @@ credited from `stoily/assets/sources.json`).
 - **The Stoily sign-in ends on a page that does not load** (`http://127.0.0.1:<port>/…`): that is
   expected, in a browser Codespace and in VS Code desktop alike. Copy that full address from the
   address bar and paste it into the terminal at `address:`, right away — it works once.
-- **The LIVE changes always ask you first, auto mode too** — Codex's plain summary ending "— yes to
-  go ahead?", then Codex's own approval prompt (`set_store_config`, `set_store_language`,
-  `create_category`, `update_category`, `move_category`, `upsert_product`, `set_product_image`,
-  `set_logo`, `create_image_upload`, `upload_image`, `create_store`, `publish_all_drafts`), so under
-  `codex exec` (nobody to answer) they never run; use interactive `codex` for them. `upsert_product`
-  overwrites an existing SKU's price and description (Codex shows what changes first).
+- **The LIVE changes always ask you first, auto mode too** (the 12: `set_store_config`,
+  `set_store_language`, `create_category`, `update_category`, `move_category`, `upsert_product`,
+  `set_product_image`, `set_logo`, `create_image_upload`, `upload_image`, `create_store`,
+  `publish_all_drafts`) — Codex's plain summary ending "— yes to go ahead?" and your yes in the chat
+  (the demo brief's NEW products excepted). Codex's own approval prompt (a click) comes only before
+  `create_store` and `publish_all_drafts` (kit 3.16.1, auto on and off alike); the other ten run on the
+  chat yes alone, a rule Codex keeps, not code. Under `codex exec` nobody can give that yes, so the
+  rules call no live tool there; use interactive `codex` for them. `upsert_product` overwrites an
+  existing SKU's price and description (Codex shows what changes first).
 - **Catalog needs Admin or Owner** of the store, and the first catalog call on a connection asks
   you to approve product access in a browser (once).
 - **Not available:** translations (Stoily does not serve those tools yet), members (the merchant
@@ -798,11 +845,12 @@ credited from `stoily/assets/sources.json`).
 When the Feature's `owner` option names a GitHub login, in a Codespace created by any other account
 every new terminal runs `go --loop`: pull, setup, check, the logins, then Codex. With no store open yet it
 signs in and opens the lobby just like the owner's terminal — no stop: say "open a store" or
-"continue `<store>`", then yes to its card. From then on Codex works in that store, and every time Codex exits (Ctrl+C, a
-crash) the store folder is saved to GitHub (`save`) and Codex opens again in the same store; a ❌
-waits for Enter and retries. For another store, tell Codex "open a store" (or "continue `<store>`").
-A staff terminal is Codex only, with no tmux keys: when you exit Codex your work is saved and Codex
-opens again, and closing a tab keeps Codex running (keep one tab open while it works, as above).
+"continue `<store>`", then yes to its card. From then on Codex works in that store, and every time Codex exits (`/quit`,
+Ctrl+C, a crash) the store folder is saved to GitHub (`save`) and the start folder opens (auto mode,
+kit 3.16.1): say "open a store" or "continue `<store>`" there, for this store or another. With
+`"auto": "off"` Codex opens again in the same store instead, and a staff terminal cannot switch store
+yet (kit#75). A ❌ waits for Enter and retries. A staff terminal is Codex only, with no tmux keys, and
+closing a tab keeps Codex running (keep one tab open while it works, as above).
 Only one Codex runs per Codespace (a kernel file lock, released when that Codex ends, crash
 included): a second terminal takes the running Codex over, the same chat. VS Code can still open another
 terminal, so this is the default experience, not a wall: the locks that hold are the Codex sandbox and

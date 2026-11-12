@@ -3,7 +3,7 @@
   // (.github/workflows/stoily-update.yml) renders it from this template + your .devcontainer/stoily.json
   // (the org, owner, maxHours, clientPrefix, galleryRepo; kit 3.15 and later name no repo by clientPrefix)
   // — edit stoily.json, never this file. Everything else (Codex, its locked config, the rules, the
-  // programs go/work/save/sync/open-store/check) comes from the stoily Feature, pulled again on every
+  // programs go/work/save/sync/open-store/move/language/check and the helpers) comes from the stoily Feature, pulled again on every
   // Codespace creation and every Rebuild container:
   // ":3" = the newest 3.x, never a breaking change. See https://github.com/stoilyhq/codespace
   "name": "Stoily Codespace",
