@@ -754,10 +754,11 @@ credited from `stoily/assets/sources.json`).
   truncated; its snapshot is marked `"_incomplete": true` and is never used to restore.
 - **The Codespace stops at its idle timeout even with Codex running in tmux**, and a running Codex task
   stops with it. Closing every tab does not stop Codex at once, but nothing then keeps the Codespace
-  awake: keep one tab open while Codex works. Create the Codespace with a 240-minute idle timeout (GitHub settings → Codespaces →
-  Default idle timeout, up to 4 hours, BEFORE you create it: GitHub cannot change an existing
-  Codespace's timeout). With auto mode on (the default), `go` keeps the Codespace awake only while
-  Codex is working; with `"auto": "off"`, nothing does. An org-wide idle policy needs a paid plan.
+  awake: keep one tab open while Codex works. Create the Codespace with a 240-minute idle timeout
+  (GitHub settings → Codespaces → Default idle timeout, up to 4 hours, BEFORE you create it: GitHub
+  cannot change an existing Codespace's timeout). With auto mode on (the default), `go` keeps the
+  Codespace awake only while Codex is working; with `"auto": "off"`, nothing does. An org-wide idle
+  policy needs a paid plan.
 - **Every store of the org is in every Codespace of the org** (each `<org>/stoily-store-*` and older
   `<org>/store-*` or `<org>/client-*` repo it can see; a store kept in one Codespace only is in that
   one alone). To keep merchants apart, use separate orgs; a member's own GitHub
@@ -801,9 +802,9 @@ signs in and opens the lobby just like the owner's terminal — no stop: say "op
 crash) the store folder is saved to GitHub (`save`) and Codex opens again in the same store; a ❌
 waits for Enter and retries. For another store, tell Codex "open a store" (or "continue `<store>`").
 A staff terminal is Codex only, with no tmux keys: when you exit Codex your work is saved and Codex
-opens again, and closing a tab keeps Codex running (keep one tab open while it works, as above). Only one Codex runs per Codespace:
-a second terminal takes the running Codex over, the same chat (a kernel file lock, released when that
-Codex ends, crash included). VS Code can still open another
+opens again, and closing a tab keeps Codex running (keep one tab open while it works, as above).
+Only one Codex runs per Codespace (a kernel file lock, released when that Codex ends, crash
+included): a second terminal takes the running Codex over, the same chat. VS Code can still open another
 terminal, so this is the default experience, not a wall: the locks that hold are the Codex sandbox and
 the GitHub permissions (the Codespace's grant is write on every `<org>/*` repo the person may write,
 never more than their own GitHub permission). The `maxHours` option is a soft daily cap: past it
@@ -861,9 +862,11 @@ on, but this Codespace's GitHub login (GITHUB_USER) is not known — nothing is 
 - **Codex ends by itself** (Ctrl+C, `/quit`, a crash): `go` uploads the chat before it opens Codex
   again and says "chat uploaded for review". It waits at most 5 seconds: a slower upload carries on
   by itself, `go` says "the chat upload for review goes on in the background", and Codex opens.
-- **While Codex is open** (kit 3.16): every 10 minutes, in the background, silently; also whenever a
-  terminal opens or joins Codex, and when Codex closes. Closing the tab does not stop Codex, so the
-  chat keeps uploading. A chat still open is uploaded as it stands and replaced as it grows.
+- **While Codex is open** (kit 3.16, auto mode, where `go` supervises Codex): every 10 minutes, in
+  the background, silently; also whenever a terminal opens or joins Codex, and when Codex closes.
+  With auto off Codex replaces `go`: its chat uploads at the next `go`'s start. Closing the tab does
+  not stop Codex, so the chat keeps uploading. A chat still open is uploaded as it stands and
+  replaced as it grows.
 - **A newer terminal takes Codex over:** it is the same chat; that terminal uploads it when it joins.
 - **Anything else** (a `codex` run by hand, a Codespace that stopped): at the next `go` in that
   Codespace.
