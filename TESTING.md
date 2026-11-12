@@ -185,8 +185,8 @@ and the test store of track 2 (`<store>`). Switch recording on by the README's
 [Recording staff chats](README.md#recording-staff-chats-kit-313) steps, EXCEPT that `<org>/chats` is
 created only at R4 (R5 runs first, while it is missing). Every Codex chat in B's Codespace is recorded
 from then on, a plain `codex` too. Below, "the repo" is `<org>/chats` on github.com and "a chat"
-means: in B's Codex, type something, wait for the reply, then Ctrl+C. Since kit 3.16.1 that Ctrl+C
-(auto mode) opens B's start folder, not the same store: before a row that works "in `clients/<store>`",
+means: in B's Codex, type something, wait for the reply, then Ctrl+C. If B then shows the start
+folder rather than the same store (kit 3.16.1, auto mode, after an exit), before a row that works "in `clients/<store>`",
 say "continue `<store>`" → yes there.
 
 | ID | Do | Pass when | Status |
