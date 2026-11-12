@@ -688,6 +688,8 @@ credited from `stoily/assets/sources.json`).
   a fresh Codex in the same store while the old one closes. Set it in `~/.bashrc` (the owner's
   terminals), as a Codespace secret, or in the template's `containerEnv`/`remoteEnv`. A secret added
   while the Codespace is running takes effect after a restart. It only matters inside a Codespace.
+  It applies to the NEXT session: while a session is already running, a new terminal with it set
+  says where Codex runs (`tmux attach -t stoily`) and never restarts or takes over that Codex.
 - In a store window: `codex` and ask. Its first line names the store ("You are working on `<name>` —
   `<domain>`"). It snapshots before and after into `stoily/` and writes
   drafts. Then run `save "what changed"` (or approve Codex running it). Publish the drafts in
