@@ -737,6 +737,12 @@ credited from `stoily/assets/sources.json`).
   are fine to test, but **never place an order** on a demo store. Any order permanently ends Codex
   publishing on that store (Stoily publishes only a store with no orders), and check/money order
   needs no payment (Codex cannot switch it off).
+- **The home page is rebuilt in place** (kit 3.16.2, with Stoily's `replaceLegacy`, as the store's Owner or
+  Admin): on a store whose home
+  is still Stoily's stock page, Codex builds the new home as a draft of that same page, so Publish all
+  replaces `/` itself — no second home page and no home-page setting to change. A store whose home
+  already points at another page keeps that page; on an older Stoily, or as an Editor (who cannot read the home setting), Codex builds `home-page`
+  as before and the merchant makes it the home.
 
 ## Reply language (kit 3.15.2)
 
