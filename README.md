@@ -513,12 +513,13 @@ sign-in. The Stoily sign-in is the kit's, in its own folder that Codex's sandbox
   user-level one that reaches it). `go` then asks for a device-code sign-in with the account that org
   uses. Taking a shared secret away later leaves running logins alone: `codex logout`, then
   `codex login --device-auth` (or a Rebuild, then `go`) in each Codespace that had it.
-- **An egress proxy for Codex (optional, kit 3.17.2): the Codespaces secret `CODEX_PROXY_URL`**
+- **An egress proxy for Codex (optional, kit: next release): the Codespaces secret `CODEX_PROXY_URL`**
   (`http://<user>:<password>@<host>:<port>`, only `http://`), on the org's `codespace` repo. Every Codex
-  the kit starts sends its own traffic through it (never the shell, npm or git), and starts only after
-  the proxy answers a test `CONNECT chatgpt.com:443` with 200 (fail closed: a 407, 403 or no answer
-  stops `go` with the reason, never the password). `check` prints one `Codex egress proxy` line. A
-  member who runs a raw `codex` in a shell bypasses it: the kit's path is what it enforces.
+  the kit starts (`go`, and a `codex` typed in a terminal or a `work` window: the kit's `codex` comes
+  first on the PATH) sends its own traffic through it (never the shell, npm or git), and starts only
+  after the proxy answers a test `CONNECT chatgpt.com:443` with 200 (fail closed: a 407, 403 or no
+  answer stops it with the reason, never the password). While it is set, `check` prints one `Codex
+  egress proxy` line. Calling the npm `codex` by its full path bypasses it (advisory there).
 - If Codex says **please sign in again**, the shared login was refreshed somewhere else: share a fresh
   login as the secret, then Stop + Start the Codespace.
 - A repository-level secret reaches **everyone** who can create a Codespace from that repo: share it
