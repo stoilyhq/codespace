@@ -513,7 +513,7 @@ sign-in. The Stoily sign-in is the kit's, in its own folder that Codex's sandbox
   user-level one that reaches it). `go` then asks for a device-code sign-in with the account that org
   uses. Taking a shared secret away later leaves running logins alone: `codex logout`, then
   `codex login --device-auth` (or a Rebuild, then `go`) in each Codespace that had it.
-- **An egress proxy for Codex (optional, kit: next release): the Codespaces secret `CODEX_PROXY_URL`**
+- **An egress proxy for Codex (optional, kit 3.18.0): the Codespaces secret `CODEX_PROXY_URL`**
   (`http://<user>:<password>@<host>:<port>`, only `http://`), on the org's `codespace` repo. Every Codex
   the kit starts (`go`, and a `codex` typed in a terminal or a `work` window: the kit's `codex` comes
   first on the PATH) sends its own traffic through it (never the shell, npm or git), and starts only
