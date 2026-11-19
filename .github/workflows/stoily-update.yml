@@ -103,9 +103,12 @@ jobs:
           # only: that is current too, never a commit (each one would tell every older Codespace to Full
           # Rebuild for nothing). Line 1 is set aside ONLY when it is the exact GENERATED line, @<sha>
           # included, in BOTH the committed file and the render; anything else (no file on the branch, a
-          # kit-1 file, a hand-edited or sha-less line 1) is compared whole, as above, and committed. The
-          # committed @<sha> then stays at the last body change: an ancestor of every newer one, which the
-          # compare below answers "behind" (go on), so the downgrade guard still holds.
+          # kit-1 file, a hand-edited or sha-less line 1) is compared whole, as above, and committed. So the
+          # committed @<sha> names the stoilyhq commit of the LAST BODY change (a header-only move is not
+          # committed): an ancestor of every newer one, which the compare below answers "behind" (go on).
+          # The updater never goes back, with ONE narrow exception: if a later same-body template's green
+          # run disappears, an intermediate body-changing template no run had seen can be accepted. The
+          # Feature-major and GHCR guards below still bound it.
           gen='^// GENERATED from stoilyhq/codespace@[0-9a-f]{40} — edit \.devcontainer/stoily\.json$'
           if git cat-file -e HEAD:.devcontainer/devcontainer.json 2>/dev/null; then
             git show HEAD:.devcontainer/devcontainer.json > "$RUNNER_TEMP/was.json"
@@ -125,7 +128,7 @@ jobs:
           tag="$(tail -n +2 .devcontainer/devcontainer.json | node -e "$feat")"
           # Never BACK to an older template (the newest green release run re-run and failed, or deleted):
           # not to a lower Feature major than the committed file's, and not to a stoilyhq commit that is an
-          # ancestor of the one the committed file was rendered from (its GENERATED line names it).
+          # ancestor of the one its GENERATED line names (the last BODY change; the one exception is above).
           was="$(git show HEAD:.devcontainer/devcontainer.json 2>/dev/null || true)"
           old="$(head -1 <<<"$was" | sed -nE 's#^// GENERATED from stoilyhq/codespace@([0-9a-f]{40}) .*#\1#p')"
           oldtag="$(tail -n +2 <<<"$was" | node -e "$feat" 2>/dev/null || true)"

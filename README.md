@@ -430,21 +430,24 @@ A change that needs a new major or a new setting comes with a new **template**, 
   template's) and commits `devcontainer.json` only when its body changed (a newer stoilyhq commit that only
   moves the `@sha` on the GENERATED first line is not committed) — and only when the Feature version
   it names is on GHCR (otherwise a notice, and the next run retries).
-- It never goes BACK: the first line of the rendered file names the stoilyhq commit it came from, and a
-  run skips (a notice) a template from an OLDER commit, or one whose Feature major is LOWER than the
-  committed file's. That last guard also holds back a NEWER upstream commit that lowers the major, and
-  it does not heal by itself: fix the template upstream and Run workflow, or edit devcontainer.json by
-  hand. If stoilyhq ever rewrote its history, the compare may fail (a red run): delete the `@<sha>` from
-  line 1 of `.devcontainer/devcontainer.json`, commit it (an edit left in a Codespace is not seen: the
-  run reads the branch), and Run workflow.
+- It never goes BACK: the first line of the rendered file names the stoilyhq commit of the LAST BODY
+  change (a header-only move is not committed), and a run skips (a notice) a template from an OLDER
+  commit, or one whose Feature major is LOWER than the committed file's. That last guard also holds
+  back a NEWER upstream commit that lowers the major, and it does not heal by itself: fix the template
+  upstream and Run workflow, or edit devcontainer.json by hand. ONE narrow exception to "never back":
+  if a later same-body template's green run disappears, an intermediate body-changing template no run
+  had seen can be accepted; the Feature-major and GHCR guards still bound it. If stoilyhq ever
+  rewrote its history, the compare may fail (a red run): delete the `@<sha>` from line 1 of
+  `.devcontainer/devcontainer.json`, commit it (an edit left in a Codespace is not seen: the run reads
+  the branch), and Run workflow.
 - It commits **`devcontainer.json` only** (it `git add`s nothing else), so the updater itself and the
   renderer never change by themselves: copy a new one from stoilyhq/codespace by hand when its release
   notes say so.
 - It pushes to the branch it ran on with the workflow's token: a **branch protection** rule that
   blocks direct pushes to your default branch makes it fail (allow GitHub Actions, or render by hand).
-- In a PUBLIC repo GitHub pauses scheduled workflows after 60 days without activity (an org's copy is
-  private, so this rarely applies). If GitHub disabled the workflow: Actions → stoily-update →
-  **Enable workflow**, then **Run workflow**.
+- In a PUBLIC repo GitHub pauses scheduled workflows after 60 days without activity. The updater no
+  longer commits header-only changes, so a quiet PUBLIC copy pauses sooner: keep your copy private. If
+  GitHub disabled the workflow: Actions → stoily-update → **Enable workflow**, then **Run workflow**.
 - A rendered change reaches a running Codespace after `git pull` in the workbench (or `go`, which
   pulls first) and THEN **Rebuild container** (the rebuild reads the workbench's devcontainer.json).
   `check` prints the installed kit version.

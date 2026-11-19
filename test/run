@@ -315,7 +315,7 @@ is "…then its render is current: exit 0, no commit, origin untouched" "$rc $(g
 has "…says so" "$out" "devcontainer.json is current"
 is "…(C1 was not the tip)" "$([ "$c1" != "$c2" ] && echo moved)" moved
 rm -rf "$T/upd-run1"
-# Never BACK to an older template: the committed file names the stoilyhq commit it was rendered from.
+# Never BACK to an older template: the committed file names the stoilyhq commit of its last BODY change.
 SHA_A="1111111111111111111111111111111111111111" SHA_B="2222222222222222222222222222222222222222" SHA_C="3333333333333333333333333333333333333333"
 uj() { node "$RJ" --source "$1" "${3:-$tpl}" "$UR/.devcontainer/stoily.json" "$UR/.devcontainer/devcontainer.json"; }
 owner() { printf '{"org":"%s","owner":"%s"}\n' "$ORG" "$1" > "$UR/.devcontainer/stoily.json"; git -C "$UR" add .devcontainer/stoily.json; }
@@ -456,6 +456,16 @@ for c in "// my own note|a line 1 that is not a GENERATED line" "$gl1 (edited)|a
   cmpmode ok '{"status":"behind"}'; out="$(UDIR="$U9" USHA="$SHA_C" upd 0)"; rc=$?
   is "$why + the same rest → compared whole: committed and pushed" "$same $rc $(pushed "$U9" | cut -c1-13) $(git -C "$U9" show HEAD:.devcontainer/devcontainer.json | head -1)" "same 0 chore: render // GENERATED from stoilyhq/codespace@$SHA_C — edit .devcontainer/stoily.json"
 done
+# ...and the RENDER side too: HEAD holds the exact GENERATED line (@B), the render's line 1 is not one
+# (no --source: a sha-less header) over the same rest → compared whole: committed through the guards
+U10="$T/upd10"; urepo "$U10" "$T/g-b.json" g1; node "$RJ" "$tpl" "$U10/.devcontainer/stoily.json" "$U10/.devcontainer/devcontainer.json"
+gl0="// GENERATED from stoilyhq/codespace — edit .devcontainer/stoily.json"
+same="$(cmp -s <(tail -n +2 "$T/g-b.json") <(tail -n +2 "$U10/.devcontainer/devcontainer.json") && echo same)"
+is "…(HEAD's line 1 is @B, the render's is sha-less, the rest is the same)" "$(head -1 "$T/g-b.json") | $(head -1 "$U10/.devcontainer/devcontainer.json") | $same" "$gl1 | $gl0 | same"
+cmpmode ok '{"status":"behind"}'; out="$(UDIR="$U10" USHA="$SHA_C" upd 0)"; rc=$?
+is "a sha-less render line 1 + the same rest over an exact GENERATED HEAD → compared whole: committed and pushed" "$rc $(pushed "$U10") | $(git -C "$U10" show HEAD:.devcontainer/devcontainer.json | head -1)" "0 chore: render stoilyhq/codespace@$SHA_C + stoily.json into .devcontainer/devcontainer.json | $gl0"
+has "…through the downgrade guard (compared @C with the committed @B)" "$(cat "$T/curl.log")" "compare/$SHA_C...$SHA_B"
+has "…and the GHCR check" "$(cat "$T/curl.log")" "https://ghcr.io/v2/stoilyhq/codespace/stoily/manifests/"
 echo
 echo "test/run: $pass passed, $fail failed"
 [ "$fail" = 0 ]
