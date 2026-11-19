@@ -424,6 +424,38 @@ is "a HIGHER Feature major (:$MAJOR → :$NEXT) not on GHCR yet (404) → a noti
 out="$(UDIR="$U7" USHA="$SHA_C" upd 0)"; rc=$?
 is "a HIGHER Feature major than the committed file's (:$MAJOR → :$NEXT), a newer commit → committed and pushed" "$rc $(pushed "$U7" | cut -c1-13) $(git -C "$U7" show HEAD:.devcontainer/devcontainer.json | grep -c "codespace/stoily:$NEXT\"")" "0 chore: render 1"
 has "…after the GHCR check of :$NEXT" "$(cat "$T/curl.log")" "https://ghcr.io/v2/stoilyhq/codespace/stoily/manifests/$NEXT"
+# A newer stoilyhq commit whose template renders the SAME body (a docs-only push): only line 1 (@sha)
+# differs → current, never a commit (it would ask every older Codespace for a Full Rebuild for nothing).
+U8="$T/upd8"; urepo "$U8" "" h1; node "$RJ" --source "$SHA_B" "$tpl" "$U8/.devcontainer/stoily.json" "$U8/.devcontainer/devcontainer.json"
+git -C "$U8" add -A && git -C "$U8" commit -qm "rendered from @B" && git -C "$U8" push -q origin HEAD:main; h8="$(git -C "$U8" rev-parse HEAD)"
+node "$RJ" --source "$SHA_C" "$tpl" "$U8/.devcontainer/stoily.json" "$U8/.devcontainer/devcontainer.json"
+is "…(the render differs from HEAD's in line 1 only)" "$(git -C "$U8" diff --numstat -- .devcontainer/devcontainer.json | cut -f1,2 | tr '\t' ' ') $(git -C "$U8" diff -U0 -- .devcontainer/devcontainer.json | grep -c '^@@ -1 +1 @@')" "1 1 1"
+cmpmode http:500; out="$(UDIR="$U8" USHA="$SHA_C" upd 0)"; rc=$?
+is "the same body from a NEWER stoilyhq commit (only the @sha in line 1 changed) → exit 0, no commit, origin untouched" "$rc $(git -C "$U8" rev-parse HEAD) $(git --git-dir="$U8-origin.git" rev-parse main)" "0 $h8 $h8"
+has "…says so" "$out" "only the template sha changed; body unchanged — not committed"
+is "…before any network call (no compare, no GHCR)" "$(wc -l < "$T/curl.log" | tr -d ' ')" 0
+is "…and leaves nothing staged or changed" "$(git -C "$U8" status --porcelain -- .devcontainer/devcontainer.json)" ""
+is "…the committed line 1 still names the last body change (@B)" "$(git -C "$U8" show HEAD:.devcontainer/devcontainer.json | head -1)" "// GENERATED from stoilyhq/codespace@$SHA_B — edit .devcontainer/stoily.json"
+# then a REAL body change at that newer commit: the compare runs against the stale @B (an ancestor:
+# "behind") and the render is committed, naming @C
+printf '{"org":"%s","owner":"h2"}\n' "$ORG" > "$U8/.devcontainer/stoily.json"; node "$RJ" --source "$SHA_C" "$tpl" "$U8/.devcontainer/stoily.json" "$U8/.devcontainer/devcontainer.json"
+cmpmode ok '{"status":"behind"}'; out="$(UDIR="$U8" USHA="$SHA_C" upd 0)"; rc=$?
+is "…then a body change (owner h1 → h2) → committed and pushed" "$rc $(pushed "$U8")" "0 chore: render stoilyhq/codespace@$SHA_C + stoily.json into .devcontainer/devcontainer.json"
+has "…after comparing the new commit with the STALE committed one (@C...@B: behind = go on)" "$(cat "$T/curl.log")" "compare/$SHA_C...$SHA_B"
+is "…the committed line 1 now names @C" "$(git -C "$U8" show HEAD:.devcontainer/devcontainer.json | head -1)" "// GENERATED from stoilyhq/codespace@$SHA_C — edit .devcontainer/stoily.json"
+# line 1 is set aside ONLY when it is the exact GENERATED line: any other first line + the same rest is
+# compared whole → committed (the render restores the GENERATED line)
+printf '{"org":"%s","owner":"g1"}\n' "$ORG" > "$T/g1.json"; node "$RJ" --source "$SHA_B" "$tpl" "$T/g1.json" "$T/g-b.json"
+gl1="// GENERATED from stoilyhq/codespace@$SHA_B — edit .devcontainer/stoily.json"
+n=0
+for c in "// my own note|a line 1 that is not a GENERATED line" "$gl1 (edited)|a GENERATED line with text after it" " $gl1|a GENERATED line with text before it" "// GENERATED from stoilyhq/codespace — edit .devcontainer/stoily.json|a GENERATED line with no @sha" "// GENERATED from stoilyhq/codespace@${SHA_B:1} — edit .devcontainer/stoily.json|a GENERATED line with a 39-hex sha"; do
+  l1="${c%%|*}" why="${c#*|}"; n=$((n + 1))
+  { printf '%s\n' "$l1"; tail -n +2 "$T/g-b.json"; } > "$T/g-head.json"
+  U9="$T/upd9-$n"; urepo "$U9" "$T/g-head.json" g1; node "$RJ" --source "$SHA_C" "$tpl" "$U9/.devcontainer/stoily.json" "$U9/.devcontainer/devcontainer.json"
+  same="$(cmp -s <(tail -n +2 "$T/g-head.json") <(tail -n +2 "$U9/.devcontainer/devcontainer.json") && echo same)"
+  cmpmode ok '{"status":"behind"}'; out="$(UDIR="$U9" USHA="$SHA_C" upd 0)"; rc=$?
+  is "$why + the same rest → compared whole: committed and pushed" "$same $rc $(pushed "$U9" | cut -c1-13) $(git -C "$U9" show HEAD:.devcontainer/devcontainer.json | head -1)" "same 0 chore: render // GENERATED from stoilyhq/codespace@$SHA_C — edit .devcontainer/stoily.json"
+done
 echo
 echo "test/run: $pass passed, $fail failed"
 [ "$fail" = 0 ]

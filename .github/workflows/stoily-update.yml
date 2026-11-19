@@ -2,7 +2,8 @@ name: stoily-update
 # Runs ONLY in an org's copy of stoilyhq/codespace (Use this template copies .github/): renders the
 # org's .devcontainer/devcontainer.json from the stoilyhq template AT the commit of the latest SUCCESSFUL
 # push-to-main run of stoilyhq's release workflow (tested, its Feature published) + the org's own
-# .devcontainer/stoily.json, with .github/stoily-render.js, and commits it when it changed. So a new
+# .devcontainer/stoily.json, with .github/stoily-render.js, and commits it when its BODY changed (a new
+# stoilyhq commit that changes only the GENERATED first line is not committed). So a new
 # template (a new Feature major, a new setting) reaches the org by itself, and an edit of stoily.json
 # is live ~30 s later. It commits devcontainer.json ONLY (never this workflow or the renderer), and only
 # when the Feature version it names is published on GHCR. If GitHub disabled the workflow (a public
@@ -98,6 +99,28 @@ jobs:
           # staged, so a devcontainer.json the branch does not have yet (deleted upstream) counts as a change
           git add .devcontainer/devcontainer.json
           if git diff --cached --quiet -- .devcontainer/devcontainer.json; then echo "devcontainer.json is current"; exit 0; fi
+          # A newer stoilyhq commit whose template renders the SAME body (a docs-only push) changes line 1
+          # only: that is current too, never a commit (each one would tell every older Codespace to Full
+          # Rebuild for nothing). Line 1 is set aside ONLY when it is the exact GENERATED line, @<sha>
+          # included, in BOTH the committed file and the render; anything else (no file on the branch, a
+          # kit-1 file, a hand-edited or sha-less line 1) is compared whole, as above, and committed. The
+          # committed @<sha> then stays at the last body change: an ancestor of every newer one, which the
+          # compare below answers "behind" (go on), so the downgrade guard still holds.
+          gen='^// GENERATED from stoilyhq/codespace@[0-9a-f]{40} — edit \.devcontainer/stoily\.json$'
+          if git cat-file -e HEAD:.devcontainer/devcontainer.json 2>/dev/null; then
+            git show HEAD:.devcontainer/devcontainer.json > "$RUNNER_TEMP/was.json"
+            l1was="" l1now=""
+            IFS= read -r l1was < "$RUNNER_TEMP/was.json" || true
+            IFS= read -r l1now < .devcontainer/devcontainer.json || true
+            if [[ "$l1was" =~ $gen && "$l1now" =~ $gen ]]; then
+              tail -n +2 "$RUNNER_TEMP/was.json" > "$RUNNER_TEMP/was.body"
+              tail -n +2 .devcontainer/devcontainer.json > "$RUNNER_TEMP/now.body"
+              if cmp -s "$RUNNER_TEMP/was.body" "$RUNNER_TEMP/now.body"; then
+                git checkout -q HEAD -- .devcontainer/devcontainer.json   # nothing left staged or changed
+                echo "only the template sha changed; body unchanged — not committed"; exit 0
+              fi
+            fi
+          fi
           feat='const j = JSON.parse(require("fs").readFileSync(0, "utf8")); const k = Object.keys(j.features || {}).find((k) => /^ghcr\.io\/stoilyhq\/codespace\/stoily:/.test(k)); console.log(k ? k.split(":").pop() : "")'
           tag="$(tail -n +2 .devcontainer/devcontainer.json | node -e "$feat")"
           # Never BACK to an older template (the newest green release run re-run and failed, or deleted):

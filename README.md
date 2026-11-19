@@ -427,7 +427,8 @@ A change that needs a new major or a new setting comes with a new **template**, 
   run's commit (tests passed, Feature version published). No successful run yet = a notice and a green
   skip; a GitHub API answer it cannot read = a red run (nothing committed). It renders it with your `stoily.json` (`.github/stoily-render.js`: the
   comments go, the ONE grant `<org>/*` and the Feature's options are set, everything else is the
-  template's) and commits `devcontainer.json` only when it changed — and only when the Feature version
+  template's) and commits `devcontainer.json` only when its body changed (a newer stoilyhq commit that only
+  moves the `@sha` on the GENERATED first line is not committed) — and only when the Feature version
   it names is on GHCR (otherwise a notice, and the next run retries).
 - It never goes BACK: the first line of the rendered file names the stoilyhq commit it came from, and a
   run skips (a notice) a template from an OLDER commit, or one whose Feature major is LOWER than the
