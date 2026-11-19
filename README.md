@@ -436,7 +436,7 @@ A change that needs a new major or a new setting comes with a new **template**, 
   back a NEWER upstream commit that lowers the major, and it does not heal by itself: fix the template
   upstream and Run workflow, or edit devcontainer.json by hand. ONE narrow exception to "never back":
   if a later same-body template's green run disappears, an intermediate body-changing template no run
-  had seen can be accepted; the Feature-major and GHCR guards still bound it. If stoilyhq ever
+  had committed can be accepted; the Feature-major and GHCR guards still bound it. If stoilyhq ever
   rewrote its history, the compare may fail (a red run): delete the `@<sha>` from line 1 of
   `.devcontainer/devcontainer.json`, commit it (an edit left in a Codespace is not seen: the run reads
   the branch), and Run workflow.

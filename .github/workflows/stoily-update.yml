@@ -107,7 +107,7 @@ jobs:
           # committed @<sha> names the stoilyhq commit of the LAST BODY change (a header-only move is not
           # committed): an ancestor of every newer one, which the compare below answers "behind" (go on).
           # The updater never goes back, with ONE narrow exception: if a later same-body template's green
-          # run disappears, an intermediate body-changing template no run had seen can be accepted. The
+          # run disappears, an intermediate body-changing template no run had committed can be accepted. The
           # Feature-major and GHCR guards below still bound it.
           gen='^// GENERATED from stoilyhq/codespace@[0-9a-f]{40} — edit \.devcontainer/stoily\.json$'
           if git cat-file -e HEAD:.devcontainer/devcontainer.json 2>/dev/null; then
