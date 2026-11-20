@@ -12,7 +12,7 @@ not load) and paste it into the terminal at `address:`. (A Stoily server that do
 which and signs in without it.) To sign in again, for example with other stores ticked:
 `/usr/local/share/stoily-codespace/libexec/stoily mcp-proxy --sign-out`, then `go`.
 
-Run it on a new org's first Codespace, and again after a new kit MAJOR version (a new `stoily:<major>`) or a change
+Run it on a new org's first Codespace, and again after a new kit MAJOR version (a new `stoily:<major>`; a minor or patch release installs itself, §9) or a change
 to your workbench's `.devcontainer/stoily.json`. Note ✅/❌ per ID; for a ❌, copy what Codex or the program printed.
 
 **Use TEST stores you own that no merchant sees** — never a merchant's store. At every sign-in tick
@@ -41,9 +41,11 @@ throwaway store Codex creates itself.
                                       (a TEST org only)
  8 Kit 3.15.2/    L1 C1 C2            reply language, the
    3.16.1                             two clicks, staff
+ 9 Kit 3.18       U1–U5               live updates (no
+                                      rebuild)
 ```
 
-Order: 0 → 1 → 3 (T4–T6) → 2 → 3 (T12, S7) → 4 → 5 → 6 → 7 → 8. Track 2 runs inside `clients/<store>`,
+Order: 0 → 1 → 3 (T4–T6) → 2 → 3 (T12, S7) → 4 → 5 → 6 → 7 → 8 → 9. Track 2 runs inside `clients/<store>`,
 which T4–T5 create.
 
 ## 0. Setup
@@ -224,6 +226,20 @@ set to another account (a staff terminal) and two test stores on the staff accou
 | C1 the two clicks (kit 3.16.1) | Lobby: **"create a store called C1 test, build demo-store"** → "no" to the repo question → "yes" to each summary Codex shows. Answer Codex's own approval prompt (a click) with yes each time one appears. After the run ends: **"Change the price of MT-001 to 1."** → "yes" | Codex's approval prompt appears once per `create_store` call and once per `publish_all_drafts` call (one each, unless a publish answers with a deferred row: then its re-call asks a new yes and shows a new prompt), each naming the server **Stoily** (not `stoily`), and on no other Stoily tool; the new products (`upsert_product`) and `create_image_upload` run with NO prompt (the uploads after your chat yes, the new products with no yes at all); the MT-001 change shows before → after (`get_product` first), waits for your yes and runs with no prompt; Codex says the no-order line of T14 once the products are on sale. Do not place an order | never run in a Codespace |
 | C2 staff switch store (kit 3.16.1) | In a staff terminal (auto mode): **"continue `<store>`"** → "yes", change something small, then `/quit`. In the start folder's Codex: **"continue `<second test store>`"** → "yes". Then, in an org with `"auto": "off"`: in a staff terminal with a store's Codex open, `/quit` | auto mode: the exit saves the store folder (its commit on GitHub, or the ℹ line for a store kept here) and the start folder's Codex opens in the same terminal; the second store opens after its card's yes; auto off: the same store opens again (the known gap, kit#75: not a ❌) | never run in a Codespace |
 | C3 home in place (kit 3.16.2) | As the store's Owner or Admin, on a NEW store (its home still Stoily's stock page): **"build the home page: a hero, three product tiles, a short about band"** → yes. Then Publish all (or let Codex publish a pre-launch store it created) | Codex's first home call is `apply_page_changes` with `replaceLegacy` (no new `home-page` page in Content → Pages, no home-page setting change); after the publish, `/` shows the new home with its own hero heading (no stray "Home Page" title); `progress.md` says `Home: in place`. ❌ = a new `home-page` page or a `cms_home_page` change on that store |
+
+## 9. Kit 3.18 — live updates (no rebuild)
+
+Run on kit 3.18 or later (`check | grep "kit v"`). A NEW kit release of the same major is needed for U1–U3:
+run them the next time one is published (or, as a maintainer, on a `proof` branch pinned to
+`stoily:<X.Y.Z>-proof` with `sudo sh -c 'echo proof > /usr/local/etc/stoily/channel'`).
+
+| ID | Do | Pass when | Status |
+|---|---|---|---|
+| U1 a start installs live | After a new kit release: Codespaces menu → Stop, open it again, wait ~5 min, exit Codex, `check` | `kit v<new> is live (…; previous v<old>)`, or first `kit v<new> is ready and switches at the next start …` and, after one more Stop/Start, the live line; `Codex's requirements = the kit's` ✅; no rebuild was needed | never run in a Codespace |
+| U2 the switch waits while the kit runs | Keep Codex (or another terminal's kit program) open while the new release downloads; `check` in another terminal | `kit v<new> is ready and switches at the next start …`; `sudo tail /var/log/stoily/kit-install.log` shows `pending <new>: busy (…)`; the old kit keeps working; the next start switches (a `go` alone may not: the kit's own terminal programs count as running) | never run in a Codespace |
+| U3 the Codex rules move with it | After U1: `check` | `Codex's requirements = the kit's (/etc/codex/requirements.toml)` ✅ (the log shows `reconcile /etc/codex/requirements.toml = …/<new>/codex/requirements.toml`) | never run in a Codespace |
+| U4 an offline start | Turn the network off for a start (or a GHCR outage): start, then `check` | nothing stops: `go` and Codex work on the current kit; no ❌ about the update | never run in a Codespace |
+| U5 the kill switch | Codespaces secret `STOILY_LIVE_UPDATE=off` for the repo, Stop/Start after a new release | `check` says `… live updates are off (STOILY_LIVE_UPDATE=off): ☰ Full Rebuild Container`; nothing is installed; a Full Rebuild takes the new kit | never run in a Codespace |
 
 ## Cleanup
 

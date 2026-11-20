@@ -18,7 +18,7 @@ rendered from it, the updater workflow, `.gitignore`, `prompts/`).
 Everything that runs inside the Codespace — Codex, its locked config, the rules and the programs
 below — comes from **the kit**, the [Dev Container Feature](https://containers.dev/implementors/features/)
 `ghcr.io/stoilyhq/codespace/stoily`, which that devcontainer.json pulls on every Codespace creation
-and every **Rebuild container**. The Feature is published by Stoily; its source is not public. The
+and every **Rebuild container** (kit 3.18+ also updates itself at a start). The Feature is published by Stoily; its source is not public. The
 org's updater re-renders its `devcontainer.json` from the latest tested template, so every org stays
 current with nothing to copy (except, rarely, a new updater).
 
@@ -315,7 +315,7 @@ options in `devcontainer.json` (never edit that file: the next render replaces i
 | `auto` | `""` | **Auto mode is on by default.** `""` (the default) or `"on"` = auto mode: you type one sentence and Codex does the rest — `go` runs the kit's programs it asks for, Codex asks no clarifying questions besides which store (and its card's yes), a new store's name, the repo question (a store with no GitHub repo yet), which waiting store and the intake's plan (otherwise it picks a default and writes each choice under "Choices" in `stoily/progress.md`), and `go` keeps the Codespace awake while Codex works. Every LIVE change still asks for your yes in the chat, auto mode too (the demo brief's NEW products excepted), and so does an undo ("undo that"); a conflict is settled by an admin on GitHub, never by Codex. `"off"` = Codex also asks before every kit program, and a store is opened in the terminal; the Stoily tools ask the same in both modes (your yes in the chat; Codex's own click only before `create_store` and `publish_all_drafts`, kit 3.16.1) (needs kit 3.9 or later AND this repo's current `.github/stoily-render.js` in your copy: an older one refuses `"off"`). Nothing else is accepted. Read [Auto mode](#auto-mode-on-by-default) and the auto paragraph in "What the lock does NOT do". |
 | `record` | `""` | **Recording staff chats is off by default.** `""` or `"off"` = no chat is recorded anywhere (nothing is written into the Feature's options). `"on"` = every Codex chat in a STAFF Codespace (any account but `owner`) is uploaded to the org's private repo `<org>/chats` for the org's admins to review; needs kit 3.13 or later, `owner` set, AND this repo's current `.github/stoily-render.js` in your copy (an older one refuses the key and the updater's run goes red). Turn it on only by the steps in [Recording staff chats](#recording-staff-chats-kit-313): staff are told in writing FIRST. Nothing else is accepted. |
 | `recordDays` | `""` | How many days a recorded chat is kept (whole days, `1`–`999`). Empty = 90. Used only with `"record": "on"` (otherwise it is not written). See [Retention](#recording-staff-chats-kit-313) for when old chats actually go. |
-| `codexVersion` | the kit's tested Codex | The `@openai/codex` npm version installed into the image (the Feature's option; not in `stoily.json`). The default is the version this kit release was tested with: a kit bot moves it to a newer stable Codex once a week (when one has been out 72 hours and passed the kit's tests) and releases a kit patch, so a Codespace gets it on create or Full Rebuild. `latest` takes the newest. A version below `0.167.0` fails the build: an older Codex does not enforce the locked settings. |
+| `codexVersion` | the kit's tested Codex | The `@openai/codex` npm version installed into the image (the Feature's option; not in `stoily.json`). The default is the version this kit release was tested with: a kit bot moves it to a newer stable Codex once a week (when one has been out 72 hours and passed the kit's tests) and releases a kit patch, so a Codespace gets it on create or Full Rebuild, and a kit 3.18+ Codespace at its next start (Updates and versions). `latest` takes the newest. A version below `0.167.0` fails the build: an older Codex does not enforce the locked settings. |
 
 An invalid value fails the updater's run (nothing is committed; the run's log names the value); an
 invalid option that reaches the Codespace fails its build with the option's name. Fix it and rebuild.
@@ -415,9 +415,24 @@ said in Codex — no terminal:
 The template pins the Feature's major version (`stoily:<major>`, the one in
 `.devcontainer/devcontainer.json`): every Codespace creation and every **Rebuild container** pulls the
 newest release of that major, so fixes reach every org with no change on your side.
-A Stop/Start (restart) keeps the old container and its kit: after a kit release, **Rebuild container**,
-then `check | grep "kit v"`; if it still shows the old version, Command Palette (Ctrl/Cmd+Shift+P) →
-**Codespaces: Full Rebuild Container** (slower: it builds without the image cache).
+
+**Kit 3.18 and later update themselves.** At each start (Codespaces menu → Stop, then open it again;
+GitHub's idle stop counts too) the kit looks for a newer release of its major, downloads and checks it
+in the background, and switches to it when no Codex and no kit program runs. Otherwise it waits and
+switches at the next start, so expect the new kit after the SECOND start following a release (the first
+one downloads it while your terminals start). No rebuild; `check` shows where it is:
+
+- `kit v<new> is live (…; previous v<old>)`: done (the next new terminal also says so once).
+- `kit v<new> is ready and switches at the next start …`: downloaded and checked, waiting; Stop/Start.
+- `kit v<new> needs a new container …` or `kit v<new> is out … ☰ Full Rebuild Container`: this release
+  (or this Codespace) cannot update live; Command Palette (Ctrl/Cmd+Shift+P) → **Codespaces: Full
+  Rebuild Container**.
+
+A Codespace on a kit before 3.18 has no live update: ONE Full Rebuild brings it to 3.18+, and from then
+on it updates itself. Live updates need passwordless sudo (the default images have it). The Codespaces
+secret `STOILY_LIVE_UPDATE=off` turns them off for a Codespace or an org; a Full Rebuild still updates.
+The install log is `/var/log/stoily/kit-install.log`.
+
 A change that needs a new major or a new setting comes with a new **template**, and the
 **updater** brings it to your org by itself:
 
@@ -450,7 +465,8 @@ A change that needs a new major or a new setting comes with a new **template**, 
   GitHub disabled the workflow: Actions → stoily-update → **Enable workflow**, then **Run workflow**.
 - A rendered change reaches a running Codespace after `git pull` in the workbench (or `go`, which
   pulls first) and THEN **Rebuild container** (the rebuild reads the workbench's devcontainer.json).
-  `check` prints the installed kit version.
+  `check` prints the installed kit version. (A new kit of the same major needs none of this: it
+  installs itself at the next start, above.)
 
 ### Billing: who pays for a Codespace
 
