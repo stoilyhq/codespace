@@ -230,8 +230,7 @@ set to another account (a staff terminal) and two test stores on the staff accou
 ## 9. Kit 3.18 — live updates (no rebuild)
 
 Run on kit 3.18 or later (`check | grep "kit v"`). A NEW kit release of the same major is needed for U1–U3:
-run them the next time one is published (or, as a maintainer, on a `proof` branch pinned to
-`stoily:<X.Y.Z>-proof` with `sudo sh -c 'echo proof > /usr/local/etc/stoily/channel'`).
+run them the next time one is published.
 
 | ID | Do | Pass when | Status |
 |---|---|---|---|

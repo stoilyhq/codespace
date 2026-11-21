@@ -552,9 +552,9 @@ once, or the shared secret), then to Stoily — once; later starts reuse it:
 
 `go` asks for every scope the kit's tools need in that one sign-in, records them, and signs in again
 only when there is no sign-in, when it can no longer be refreshed, or when a new kit needs other
-scopes. **After updating to kit 3.10 everyone signs in to Stoily once more**: until 3.10 Codex held
-the Stoily sign-in itself (`~/.codex/.credentials.json`, which `go` now deletes); from 3.10 the kit
-holds it. A Stoily server that does not offer `stores:create`, `structure:write` or `content:publish`
+scopes. The kit holds the Stoily sign-in, never Codex: a sign-in an older kit left in Codex's home
+(`~/.codex/.credentials.json`) is cancelled at Stoily and deleted by `go`, which then signs in once
+more. A Stoily server that does not offer `stores:create`, `structure:write` or `content:publish`
 yet refuses the sign-in with `invalid_scope`: `go` says which and signs in without it (retried a day
 later). **A new sign-in is a new connection:** a store Codex created can be published by
 `publish_all_drafts` only from the sign-in that created it, so run a whole-store brief from create to
@@ -730,6 +730,8 @@ credited from `stoily/assets/sources.json`).
 - **Closing a tab does not stop Codex**, but KEEP ONE TAB OPEN while Codex works: with every tab
   closed the Codespace may stop after its idle timeout, even mid-answer. It stays awake only while
   Codex is actively working in an open terminal.
+- Copy out of the terminal (Codex's answer, a link): hold Shift and drag across the text; it is
+  selected and copied.
 - In a `work` window: `Ctrl-b w` lists the windows, `Ctrl-b <n>` switches, `Ctrl-b d` detaches.
 - Off switch: `STOILY_NO_TMUX=1` gives the behaviour before 3.16: no tmux, and a new terminal starts
   a fresh Codex in the same store while the old one closes. Set it in `~/.bashrc` (the owner's
@@ -748,9 +750,14 @@ credited from `stoily/assets/sources.json`).
   redesign, a theme change, a new section or a clone is a build and runs in full, as before.
 - Undo before publish: ask it to `discard_draft`. After publish: ask it to restore from the last
   snapshot (it rebuilds the page as a draft).
-- `sync` clones new store repos and pulls every store (another person or desktop may have pushed).
-  When GitHub's list of the org's repos cannot be read it says so in one line and pulls the stores
-  already cloned.
+- The merchant's own photos and logo: drag them in the VS Code Explorer into the store folder's
+  `stoily/inputs/` (photos in `stoily/inputs/photos/`, the logo as `stoily/inputs/logo.svg`, `.png`
+  or `.jpg`); Codex uses them from there as they are, and `save` commits them with the store.
+- Store clones stay current by themselves: every start of the Codespace tries to refresh all of them
+  in the background, and `go` refreshes the store it opens; neither ever touches unsaved work.
+- `sync` refreshes them by hand: it clones new store repos and pulls every store (another person or
+  desktop may have pushed). When GitHub's list of the org's repos cannot be read it says so in one
+  line and pulls the stores already cloned.
 - A brief: in a store's Codex say "build demo-store" (the kit's example) or "build `<brief>`" (yours, in
   `prompts/`). In a terminal: `go -b demo-store <folder>` or `go -b prompts/<brief>.md <folder>`.
 - The demo's products are live and in stock (quantity 99, kit 3.16.1): add to cart and the cart page
@@ -779,6 +786,8 @@ The yes words include Hong Kong ones (係, 好, 可以, 確定, 好呀 …); a r
 
 ## Known limits — read once
 
+- **The kit does not manage a Codespace's disk space**: GitHub deletes a stopped Codespace after
+  its retention period.
 - **A changed `stoily.json` reaches an existing Codespace only after the updater committed and
   Codespaces menu → Rebuild container.** Without an org (the option, or the owner of the repo the Codespace came from) `check`,
   `sync`, `open-store`, `save` and `fetch-site` refuse with exactly that instruction (there is no
