@@ -89,7 +89,7 @@ unknown string as `null`, an unknown list as `[]`); `save design` in the kit wri
   `slot` (a slot id), `template` (markup with `{{s1.0}}` placeholders) and `item` (the repeating column
   a slot belongs to). `items` counts a section's repeating columns (0 = none).
 - Each slot: `id` (`s<section>.<n>`), `kind` (`heading` · `text` · `button` · `image`), `sample` (demo
-  copy, never shipped as a client's words), optional `level` (headings) and `item`.
+  copy, never shipped as a store's words), optional `level` (headings) and `item`.
 - `icons` (optional) maps icon hashes to https URLs. Unknown top-level keys (e.g. a later
   `sectionKit` extension) are tolerated and kept.
 
@@ -114,13 +114,13 @@ or page CSS to Stoily** (Stoily refuses both); it builds with Stoily's own tools
 
 ## Saved from a page (`save --design`)
 
-Codex can write the page it is working on back as a design, **with the client taken out**: every word
+Codex can write the page it is working on back as a design, **with the store taken out**: every word
 of the page becomes neutral placeholder copy (the slots' `sample`), and image sources and links to the
-client's domains are removed — a gallery is shared by every client of the org. `content.html` holds the
+store's domains are removed — a gallery is shared by every store of the org. `content.html` holds the
 page's document as Stoily's `read_page` returns it (after that replacement), `kit.json` has one section per top-level section of
 the page (its node tree, editable leaves marked as slots) and **`css: ""`** — Stoily's tools do not
 expose a page's design stylesheet, so a design saved from a page carries its layout and classes,
-not its style. Codex writes it to `stoily/designs/<name>/` in the client folder (its sandbox allows
+not its style. Codex writes it to `stoily/designs/<name>/` in the store folder (its sandbox allows
 no other place); `save --design <name>` (run by you) validates it, copies it to
 `<workbench>/gallery/<name>/` and pushes only that directory to the gallery repo.
 
@@ -131,7 +131,7 @@ The Stoily MCP never reads GitHub: Codex reads the local files and drives Stoily
 - **list designs** — the directories of `gallery/` with each `design.json` title and tags.
 - **use design `<name>`** — Codex rebuilds the layout with `create_page` + `apply_page_changes` from
   Stoily primitives (`pagebuilder-*` classes, theme tokens), following the kit's section order and slot kinds,
-  every slot filled with the client's own copy (the kit's `sample` text is a guide, never copied), and
+  every slot filled with the store's own copy (the kit's `sample` text is a guide, never copied), and
   says the design's own style could not be applied: Stoily's design catalogue is empty, so
   `build_page_from_design` is used only when you ask for a catalogue design by name.
 - **No CC BY-SA image in a gallery entry.** A gallery is copied into other orgs' stores; a ShareAlike
