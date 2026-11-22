@@ -49,18 +49,24 @@ current with nothing to copy (except, rarely, a new updater).
 
 Store folders live in `stores/` since kit 3.19. A Codespace made before that kept them in `clients/`:
 its first start on kit 3.19 moves them to `stores/` by itself (`clients` stays a link to `stores`
-until kit 3.20), with the kit's records and any store still waiting to be created.
+until kit 3.20) and says:
+
+`✅ store folders moved: clients/ → stores/ (clients is a link to it until kit 3.20)`
+
+The kit's records for each folder (a store still waiting to be created, a repo answer) move with it:
+they are copied to the folder's new place first, and once the move has worked the old copies are
+removed. Never move the folders back by hand: the kit's records are filed under the folders' `stores/`
+paths now, so a hand move back would leave the folders without them. A move the kit could not make waits for the next start, and `check`
+says why.
 
 Older store repos keep working as they are: `<org>/stoily-store-<storeId>` (kit 3.15 to 3.18), cloned
 into `stores/<storeId>/`, and `<org>/client-<name>` (before kit 3.10), cloned into `stores/<name>/`.
 They open, save and upload as before. Before it creates a repo the kit checks GitHub for
 `<org>/store-<storeId>`, then `<org>/stoily-store-<storeId>`, and checks THIS Codespace for an
 already-cloned `client-<name>` folder of that store, and adopts what it finds: never a second repo.
-If GitHub has BOTH names as two different repos and Stoily's binding names neither, the kit stops and
-changes nothing: `<org>/store-<storeId> and <org>/stoily-store-<storeId> are two repos for the same
-store — nothing was changed; tell an admin (Stoily's binding names the one to keep)` (a folder already
-cloned here keeps working). To give an older repo the current name, `<org>/store-<storeId>`, say
-**"move `<store>`"** in Codex (see [A new store](#a-new-store)).
+If GitHub has BOTH names as two different repos, the kit never picks one by itself: Stoily's binding
+for the store does, or an admin (see **Older store repos** in [A new store](#a-new-store)). To give an
+older repo the current name, `<org>/store-<storeId>`, say **"move `<store>`"** in Codex.
 
 **Codex is the only AI tool here, and it is locked down** (the kit's Codex config, re-applied on every
 start): its sandbox lets it WRITE files only inside the folder it was started in, its shell has no
@@ -212,6 +218,7 @@ agency), each person's own Stoily role on each store, and GitHub's repo permissi
 | `work [<folder>]` | a window per store folder (or just that one) inside the one tmux session `stoily`, the session Codex runs in (kit 3.16); `Ctrl-b w` switches window |
 | `sync` | clone / pull every store: each `<org>/store-<storeId>` repo, and each older `<org>/stoily-store-<storeId>` or `<org>/client-<name>` repo, this Codespace can see (a store kept in this Codespace only is neither pulled nor an error) |
 | `save "<what>"` | commit `stoily/` + `AGENTS.md`, push the store's repo (as you; a store kept in this Codespace only is committed here and pushed nowhere, with one ℹ line); after a conflict, your version goes to a `conflict/…` branch on GitHub and an admin settles it there ([Who changed what](#who-changed-what-and-undo)) |
+| `save --repo-link` | in a store kept in this Codespace only: checks GitHub for both of the store's repo names and the folder's own, then prints ONE line, the GitHub link to create its repo only when none of them exists (kit 3.19). It commits, pushes and writes nothing; Codex runs it when you say "create the repo" |
 | `save --design <name>` | publish the design Codex wrote to `stoily/designs/<name>/` into the org's gallery repo (validated, only that directory) |
 | `open-store <storeId> <host> --repo yes` (or `--repo no`) | open a store here (`new-client`, its older name, runs the same program). `--repo yes`: create its private repo `<org>/store-<storeId>` (an older `<org>/stoily-store-<storeId>` is used instead, never a second repo); `--repo no`: the store's work stays in this Codespace only. A store that already has a repo, or a folder here, re-opens as it is. A store with no repo and no `--repo` stops at the repo question and makes nothing. With auto mode on, Codex asks `go` to run it after the store card's yes (and your answer to the repo question) when you say "open a store"; type it yourself only with `"auto": "off"` (`<host>` = the store's main domain) |
 | `open-store --pending --name "<name>" --repo yes` (or `--repo no`) | the same, with no store yet: Codex creates the store under that name (`create_store`, asked first) and the kit links the folder to it; its repo is made only with `--repo yes` (no `--repo` = this Codespace only) |
@@ -384,7 +391,9 @@ said in Codex — no terminal:
   (see [A new store](#a-new-store)).
 - If GitHub does not let the Codespace create the repo (any account, an org or a personal one), Codex
   shows you a GitHub link: open it, leave the repository EMPTY (untick **Add a README file**), click
-  **Create repository**, then type "done" and Codex carries on.
+  **Create repository**, then type "done" and Codex carries on. The kit checks GitHub for both of the
+  store's repo names again first: when either exists there is no link, and Codex says the kit's line
+  instead (`open-store: this store's repo is <org>/<name>`).
 - A store with no domain cannot be picked yet: one still being set up → Codex says to try again in a
   minute; one Stoily could not finish creating, or a ready one with no domain yet → pick another.
 - A store already opened in this org: "continue `<store>`" (its name or domain). It shows the card
@@ -632,31 +641,53 @@ too). The new folder has no store yet (`STORE_ID: pending`, a folder `stores/new
 this Codespace); Codex's first live change is ONE `create_store` under that name (it asks first, with
 the name, currency, locale and timezone). Once the store is made the kit links the folder to it by
 itself — writes its id, name and domain into the folder's `AGENTS.md` and, after a yes to the repo
-question, creates `<org>/store-<storeId>` (or Codex gives you the GitHub link to create it,
-EMPTY: untick **Add a README file**); after a no, the folder stays in this Codespace only (below) —
+question, creates `<org>/store-<storeId>` (or Codex gives you the GitHub link to create it, from
+`save --repo-link` as below, EMPTY: untick **Add a README file**); after a no, the folder stays in this Codespace only (below) —
 and Codex builds it; the next `go` renames the folder to `stores/<storeId>`. If Codex closes before
 the new store is finished (a restart, a closed terminal), say "done" (or "continue `<name>`") in the
 lobby Codex: it reopens that `stores/new-…` folder and carries on from `stoily/progress.md`. If the
-store was already made, Codex reads it (`get_store`) and never creates a second one. With `"auto":
+store was already made, Codex reads it (`get_store`) and never creates a second one. If the kit's
+records for such a folder ever name two different stores, the kit makes no store and links the folder
+to neither, and Codex says the kit's line and stops there:
+`⚠ stoily-kit: this folder's kit records name two different stores (<id-a> and <id-b>) — it makes no store and links to neither; tell an admin`
+(an admin decides which store the folder belongs to). With `"auto":
 "off"`, in a terminal: `open-store --pending --name "<name>" --repo yes` (or `--repo no`; without
 `--repo` the folder stays in this Codespace only), then `go -b <brief> <the folder it printed>` (`go`
 never picks a pending folder by itself: name it).
 
 **A store kept in this Codespace only** (a no to the repo question): the store itself is in Stoily as
 usual; its work here (snapshots, records, `stoily/progress.md`) stays in its folder. `save` commits it
-here and says so in one ℹ line, `sync` leaves it alone, and the org's other Codespaces do not see it.
-To add the repo later, say **"create the repo"** in that store's Codex: it gives you a GitHub link.
-Open it, leave the repository EMPTY (untick **Add a README file**), click **Create repository**, then
-say "done": Codex runs `save "repo created"`, which sends the work there, and every Codespace of the
-org picks the store up at its next `sync`. A repo made with a README is refused by `save`, which
-prints `save: <org>/<repo> on GitHub was made with a README (one first commit, none of this store's
-work) — nothing was pushed and nothing on GitHub changed; delete that repo on GitHub only if you made
-it just now for this store, and create it again EMPTY (leave "Add a README file" unticked), then run
-save again`. Any other history GitHub's repo has that this folder lacks (another Codespace's work, a
-push that raced yours) gives `save: <org>/<repo> on GitHub shares no history with this folder —
-nothing was pushed and nothing on GitHub changed; tell an admin (it may hold another Codespace's
-work)`: never delete that repo. The kit never creates that repo itself after a no: your click is the
-yes.
+here and says so in one ℹ line,
+`ℹ stores/<folder>: kept in this Codespace only — no GitHub repo yet; say "create the repo" in its Codex`;
+`sync` leaves it alone, and the org's other Codespaces do not see it.
+
+To add the repo later, say **"create the repo"** in that store's Codex. Codex never builds the link
+itself: it runs `save --repo-link` (asking you first; auto mode runs it), which checks GitHub for both
+of the store's repo names and the folder's own repo again, saves nothing, and prints ONE line that
+Codex passes on:
+- none of them exists → `save: create <org>/<repo> on GitHub with this link: <link>`, the link the
+  kit stored when the store was opened (never rewritten; `<repo>` is the repo the folder's origin
+  names). Open it, leave the repository EMPTY (untick **Add a README file**), click **Create
+  repository**, then say "done": Codex runs `save "repo created"`, which sends the work there, and
+  every Codespace of the org picks the store up at its next `sync`;
+- the folder's own repo exists already →
+  `save: this store's repo is <org>/<repo> — it is on GitHub now: save "repo created" sends this folder's work there`
+  (no link);
+- the store's OTHER name exists → `save: this store's repo is <org>/<other> — this folder's origin is <org>/<repo>: no link; tell an admin`;
+- GitHub could not be checked → `save: could not check GitHub for <org>/<name> (<why>) — nothing was created; try again`;
+- a store that has its repo already → `save: this store's repo is <org>/<repo> — nothing to create`.
+
+The first save into a repo made that way checks the store's other name once more: when it is a
+different repo, `save` stops, pushes nothing and says
+`save: <org>/store-<storeId> and <org>/stoily-store-<storeId> are two repos for the same store — nothing was changed; tell an admin (Stoily's binding names the one to keep)`;
+when GitHub cannot say, it says
+`save: could not check GitHub for <org>/<name> (<why>) — nothing saved; run save again`.
+A repo made with a README is refused by `save`, which prints
+`save: <org>/<repo> on GitHub was made with a README (one first commit, none of this store's work) — nothing was pushed and nothing on GitHub changed; delete that repo on GitHub only if you made it just now for this store, and create it again EMPTY (leave "Add a README file" unticked), then run save again`.
+Any other history GitHub's repo has that this folder lacks (another Codespace's work, a push that
+raced yours) gives
+`save: <org>/<repo> on GitHub shares no history with this folder — nothing was pushed and nothing on GitHub changed; tell an admin (it may hold another Codespace's work)`:
+never delete that repo. The kit never creates that repo itself after a no: your click is the yes.
 
 **A store that exists:**
 
@@ -687,16 +718,37 @@ as they are: before it creates anything the kit checks GitHub for `<org>/store-<
 `<org>/stoily-store-<storeId>`, and checks THIS Codespace for an already-cloned `client-<name>`
 folder of that store, and adopts the one it finds, never making a second repo (a `client-<name>`
 repo is not looked up on GitHub: run `sync` first so it is cloned here). Where both names exist on
-GitHub as the SAME repo (a renamed one GitHub forwards), it is used as `<org>/store-<storeId>`. Where
-they are two different repos and Stoily's binding for the store names neither, nothing is opened,
-cloned or created, and the kit says `<org>/store-<storeId> and <org>/stoily-store-<storeId> are two
-repos for the same store — nothing was changed; tell an admin (Stoily's binding names the one to
-keep)`; a folder of that store already cloned here keeps working. `check` warns, never fails, when a
-store has two repos. To give an older repo the current
+GitHub as the SAME repo (a renamed one GitHub forwards), it is used as `<org>/store-<storeId>`.
+
+Where they are two DIFFERENT repos, the kit never picks one by itself and never moves anything
+between them (each line below comes after the program's name, `⚠` or `⚠ stoily-kit:`):
+- **Stoily's answer, on your yes.** A store Codex created, linked to its repo after your yes to the
+  repo question, and `open-store <storeId> <host> --repo yes` typed in a terminal ask Stoily, and
+  Stoily's binding for the store names the repo: the folder is linked to that one, and the kit warns
+  `<org>/store-<storeId> and <org>/stoily-store-<storeId> are two repos for the same store — this folder uses <org>/<repo>; tell an admin which one to keep`
+- **No such answer** (Stoily names neither, or there was no yes: "open a store" in the lobby asks no
+  repo question for a store whose repo exists, so it lands here): nothing is opened, cloned, created
+  or changed, and the kit stops with
+  `<org>/store-<storeId> and <org>/stoily-store-<storeId> are two repos for the same store — nothing was changed; tell an admin (Stoily's binding names the one to keep)`
+- **A folder already here keeps its own repo**: its origin is never pointed at the other one, even
+  when Stoily names the other; it keeps working, and the kit says the warning line above naming the
+  repo it uses. A store kept in this Codespace only that gets a yes again opens as it is, still kept
+  here and linked to neither:
+  `<org>/store-<storeId> and <org>/stoily-store-<storeId> are two repos for the same store — nothing was linked: stores/<folder>'s work stays in this Codespace until an admin picks the one to keep`
+- **`sync` never clones such a store** while it has no clone here, and `check` fails on it (❌; the
+  check `go` runs only warns unless `go` opens that store) with
+  `store folder <storeId> is not cloned: <the stop line above>` and the fix
+  `an admin settles the two repos first — sync cannot clone it until then`. For a store already
+  cloned here, `check` warns (⚠, never ❌) with the stop line.
+
+To give an older repo the current
 name, say **"move `<store>`"** in the lobby Codex: after the store card's yes, the kit renames the repo
 to `<org>/store-<storeId>` (GitHub forwards the old address) and a `client-<name>` folder to
 `stores/<storeId>` (a `stores/<storeId>` folder keeps its name); every other Codespace of the org
-follows at its next `sync`. If GitHub does not
+follows at its next `sync`. Until then, `go <storeId>` in a Codespace that still has the older
+folder `stores/<name>` stops with
+`stores/<name> is this store's older folder — tell an admin: sync moves it to stores/<storeId> when its repo was renamed to this store's (then type go again); if its older repo was archived or deleted, sync cannot move it`:
+run `sync` there. If GitHub does not
 let the Codespace rename it, Codex gives you the link to the repository's Settings page: change
 **Repository name** to the name it gives, click **Rename**, then type "done". A folder with unsaved
 work is not moved: say "continue `<store>`" and let Codex save it there, then "move `<store>`" in the
@@ -767,7 +819,9 @@ credited from `stoily/assets/sources.json`).
   `stoily/inputs/` (photos in `stoily/inputs/photos/`, the logo as `stoily/inputs/logo.svg`, `.png`
   or `.jpg`); Codex uses them from there as they are, and `save` commits them with the store.
 - Store clones stay current by themselves: every start of the Codespace tries to refresh all of them
-  in the background, and `go` refreshes the store it opens; neither ever touches unsaved work.
+  in the background, and `go` refreshes the store it opens; neither ever touches unsaved work. A
+  clone whose repo GitHub answers not found is left as it is, and `sync` says
+  `⚠ stores/<folder> was not updated: GitHub answers that its repo was not found (deleted, or this account cannot see it) — tell an admin`.
 - `sync` refreshes them by hand: it clones new store repos and pulls every store (another person or
   desktop may have pushed). When GitHub's list of the org's repos cannot be read it says so in one
   line and pulls the stores already cloned.
