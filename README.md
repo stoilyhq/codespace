@@ -49,9 +49,9 @@ current with nothing to copy (except, rarely, a new updater).
 
 Store folders live in `stores/` since kit 3.19. A Codespace made before that kept them in `clients/`:
 its first start on kit 3.19 moves them to `stores/` by itself (`clients` stays a link to `stores`
-until kit 3.20) and says:
+until kit 3.21) and says:
 
-`✅ store folders moved: clients/ → stores/ (clients is a link to it until kit 3.20)`
+`✅ store folders moved: clients/ → stores/ (clients is a link to it until kit 3.21)`
 
 The kit's records for each folder (a store still waiting to be created, a repo answer) move with it:
 they are copied to the folder's new place first, and once the move has worked the old copies are
