@@ -561,7 +561,8 @@ sign-in. The Stoily sign-in is the kit's, in its own folder that Codex's sandbox
   password is base64url, so the URL needs no encoding. Calling the kit release's `libexec/codex` (or Codex's `codex.js`) by its full path bypasses
   it (advisory there). A kit older than 3.20.0 ignores the secret and starts Codex direct: put an org on the
   proxy only once the kit floor (`min-version`) is 3.20.0, and take it off the proxy before any brake that
-  would bring its Codespaces below 3.20.0.
+  would hold one of its Codespaces below 3.20.0 (a brake never moves a Codespace back; it keeps one that has
+  not switched yet on the older kit).
 - If Codex says **please sign in again**, the shared login was refreshed somewhere else: share a fresh
   login as the secret, then Stop + Start the Codespace.
 - A repository-level secret reaches **everyone** who can create a Codespace from that repo: share it
