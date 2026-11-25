@@ -365,7 +365,7 @@ never creates the `stores` team: an org owner creates it while setting the servi
     "create the repo" gives no GitHub link then: once an org owner finishes the setup, ask for the
     store's repo again from the lobby ("open a store");
   - GitHub refused this Codespace's token (expired) → stop;
-  - the service is busy or down → the kit tries once more, then stops: try again later;
+  - the service is busy or down → the kit tries once more only when the wait the service asks for (Retry-After) fits in its time, else stops at once: try again later;
   - the kit cannot read `repoService` from GitHub → stop, nothing is sent anywhere;
   - no `repoService` set → Stoily makes the repo, as before, until Stoily switches that off; after
     that such a store is kept in this Codespace only.
