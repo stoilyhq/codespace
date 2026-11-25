@@ -2,7 +2,7 @@
 
 Build and manage [Stoily](https://stoily.com) stores with **Codex** and the **Stoily MCP**, from a
 GitHub Codespace. One Codespace serves many stores: each store is its own private repo,
-`<org>/store-<storeId>` (made only after your yes to Codex's repo question), cloned into
+`<org>/store-<storeId>` (made by default since kit 3.21; say "no GitHub repo" to keep a store out), cloned into
 `stores/<storeId>/`, and Codex started in that folder works on that store only. The store id never
 changes; the store's name and domain can, and the kit picks them up by itself. Every design change
 lands as a DRAFT the merchant publishes. The few LIVE changes (catalog, logo, images, store settings)
@@ -220,8 +220,8 @@ agency), each person's own Stoily role on each store, and GitHub's repo permissi
 | `save "<what>"` | commit `stoily/` + `AGENTS.md`, push the store's repo (as you; a store kept in this Codespace only is committed here and pushed nowhere, with one ℹ line); after a conflict, your version goes to a `conflict/…` branch on GitHub and an admin settles it there ([Who changed what](#who-changed-what-and-undo)) |
 | `save --repo-link` | in a store kept in this Codespace only: checks GitHub for both of the store's repo names and the folder's own, then prints ONE line, the GitHub link to create its repo only when none of them exists (kit 3.19). It commits, pushes and writes nothing; Codex runs it when you say "create the repo" |
 | `save --design <name>` | publish the design Codex wrote to `stoily/designs/<name>/` into the org's gallery repo (validated, only that directory) |
-| `open-store <storeId> <host> --repo yes` (or `--repo no`) | open a store here (`new-client`, its older name, runs the same program). `--repo yes`: create its private repo `<org>/store-<storeId>` (an older `<org>/stoily-store-<storeId>` is used instead, never a second repo); `--repo no`: the store's work stays in this Codespace only. A store that already has a repo, or a folder here, re-opens as it is. A store with no repo and no `--repo` stops at the repo question and makes nothing. With auto mode on, Codex asks `go` to run it after the store card's yes (and your answer to the repo question) when you say "open a store"; type it yourself only with `"auto": "off"` (`<host>` = the store's main domain) |
-| `open-store --pending --name "<name>" --repo yes` (or `--repo no`) | the same, with no store yet: Codex creates the store under that name (`create_store`, asked first) and the kit links the folder to it; its repo is made only with `--repo yes` (no `--repo` = this Codespace only) |
+| `open-store <storeId> <host> --repo yes` (or `--repo no`) | open a store here (`new-client`, its older name, runs the same program). `--repo yes`: create its private repo `<org>/store-<storeId>` (an older `<org>/stoily-store-<storeId>` is used instead, never a second repo); `--repo no`: the store's work stays in this Codespace only. A store that already has a repo, or a folder here, re-opens as it is. A store with no repo and no `--repo` gets its repo by default (kit 3.21), unless you said no to it in this Codespace before. With auto mode on, Codex asks `go` to run it after the store card's yes when you say "open a store"; type it yourself only with `"auto": "off"` (`<host>` = the store's main domain) |
+| `open-store --pending --name "<name>" --repo yes` (or `--repo no`) | the same, with no store yet: Codex creates the store under that name (`create_store`, asked first) and the kit links the folder to it; its repo is made unless `--repo no` (kit 3.21: no `--repo` = its private repo) |
 | `move <storeId>` | give an older repo, `<org>/client-<name>` or `<org>/stoily-store-<storeId>`, the current name `<org>/store-<storeId>` (GitHub forwards the old address). Say "move `<store>`" in the lobby Codex |
 | `fetch-site <url> [--images]` | download a page for Codex to rebuild → `source/` |
 | `photos fetch <plan.json>` / `photos finish <picks.json>` | licence-safe photos from Wikimedia Commons: previews + contact sheets in `source/photos/`, then crops in `stoily/assets/` + credits in `stoily/assets/sources.json` |
@@ -277,13 +277,12 @@ Codespace), and `check` says so.
      It lists your Stoily stores by number; answer with the number, the name or the domain. Codex shows that store's card
      — its name, every domain, your role, the end of its id — and asks **"Is this the store? Say yes
      to open it."** Only a yes opens it (a number or a name just shows a card). If the store has no
-     GitHub repo yet, Codex then asks **"Keep this store's work in a private GitHub repo too? Say yes
-     or no (yes is the usual answer)."** (the card's yes never answers it). Yes: the kit creates the
-     store's private repo `<org>/store-<storeId>`; if GitHub does not let the Codespace create
-     it, Codex gives you a GitHub link: open it, leave the repository EMPTY (untick **Add a README
-     file**), click **Create repository**, then type "done". No:
-     the store opens and its work stays in this Codespace only (the store itself is in Stoily); say
-     "create the repo" in its Codex later to add the repo.
+     GitHub repo yet, the kit gives it one with no question (kit 3.21): Stoily makes the store's
+     private repo `<org>/store-<storeId>` in your org and gives the store's team access. Where
+     neither Stoily nor GitHub can make it (no Stoily app in the org, or a personal account), the
+     store opens anyway and its work stays in this Codespace for now; say "create the repo" in its
+     Codex later to add it. Say "no GitHub repo" when you open a store to keep its work in this
+     Codespace only (the store itself is in Stoily).
    - Codex then opens that store, and its first line is **"You are working on `<name>` — `<domain>`"**.
      Say what you want built, in your own words: Codex writes a plan (the intake), shows it to you,
      and builds once you approve it.
@@ -326,7 +325,7 @@ options in `devcontainer.json` (never edit that file: the next render replaces i
 | `owner` | `""` | GitHub login whose terminals keep a shell (Codex opens there too; closing it leaves a shell or the `work?` prompt). Every other account's terminal is Codex only (`go --loop`): saved when Codex closes, then the start folder opens (auto mode, kit 3.16.1; auto off: the same store again — [Staff terminals](#staff-terminals-are-codex)). Empty = everyone keeps a shell. Optional: nothing needs it set. |
 | `maxHours` | `""` | Soft daily cap (whole hours of Codex, UTC day) for `go --loop` terminals. Empty = none. |
 | `galleryRepo` | `""` | The org's design gallery ([GALLERY.md](GALLERY.md)), cloned into `<workbench>/gallery` by `sync` when it exists and this Codespace can read it (otherwise skipped without a word). Empty = `<org>/gallery`; a repo name in the org, or `owner/name`. |
-| `auto` | `""` | **Auto mode is on by default.** `""` (the default) or `"on"` = auto mode: you type one sentence and Codex does the rest — `go` runs the kit's programs it asks for, Codex asks no clarifying questions besides which store (and its card's yes), a new store's name, the repo question (a store with no GitHub repo yet), which waiting store and the intake's plan (otherwise it picks a default and writes each choice under "Choices" in `stoily/progress.md`), and `go` keeps the Codespace awake while Codex works. Every LIVE change still asks for your yes in the chat, auto mode too (the demo brief's NEW products excepted), and so does an undo ("undo that"); a conflict is settled by an admin on GitHub, never by Codex. `"off"` = Codex also asks before every kit program, and a store is opened in the terminal; the Stoily tools ask the same in both modes (your yes in the chat; Codex's own click only before `create_store` and `publish_all_drafts`, kit 3.16.1) (needs kit 3.9 or later AND this repo's current `.github/stoily-render.js` in your copy: an older one refuses `"off"`). Nothing else is accepted. Read [Auto mode](#auto-mode-on-by-default) and the auto paragraph in "What the lock does NOT do". |
+| `auto` | `""` | **Auto mode is on by default.** `""` (the default) or `"on"` = auto mode: you type one sentence and Codex does the rest — `go` runs the kit's programs it asks for, Codex asks no clarifying questions besides which store (and its card's yes), a new store's name, the repo question (only to bring back a store kept out of GitHub, kit 3.21), which waiting store and the intake's plan (otherwise it picks a default and writes each choice under "Choices" in `stoily/progress.md`), and `go` keeps the Codespace awake while Codex works. Every LIVE change still asks for your yes in the chat, auto mode too (the demo brief's NEW products excepted), and so does an undo ("undo that"); a conflict is settled by an admin on GitHub, never by Codex. `"off"` = Codex also asks before every kit program, and a store is opened in the terminal; the Stoily tools ask the same in both modes (your yes in the chat; Codex's own click only before `create_store` and `publish_all_drafts`, kit 3.16.1) (needs kit 3.9 or later AND this repo's current `.github/stoily-render.js` in your copy: an older one refuses `"off"`). Nothing else is accepted. Read [Auto mode](#auto-mode-on-by-default) and the auto paragraph in "What the lock does NOT do". |
 | `record` | `""` | **Recording staff chats is off by default.** `""` or `"off"` = no chat is recorded anywhere (nothing is written into the Feature's options). `"on"` = every Codex chat in a STAFF Codespace (any account but `owner`) is uploaded to the org's private repo `<org>/chats` for the org's admins to review; needs kit 3.13 or later, `owner` set, AND this repo's current `.github/stoily-render.js` in your copy (an older one refuses the key and the updater's run goes red). Turn it on only by the steps in [Recording staff chats](#recording-staff-chats-kit-313): staff are told in writing FIRST. Nothing else is accepted. |
 | `recordDays` | `""` | How many days a recorded chat is kept (whole days, `1`–`999`). Empty = 90. Used only with `"record": "on"` (otherwise it is not written). See [Retention](#recording-staff-chats-kit-313) for when old chats actually go. |
 | `codexVersion` | the kit's tested Codex | The `@openai/codex` npm version installed into the image (the Feature's option; not in `stoily.json`). The default is the version this kit release was tested with: a kit bot moves it to a newer stable Codex once a week (when one has been out 72 hours and passed the kit's tests) and releases a kit patch, so a Codespace gets it on create or Full Rebuild, and a kit 3.18+ Codespace at its next start (Updates and versions). `latest` takes the newest. A version below `0.167.0` fails the build: an older Codex does not enforce the locked settings. |
@@ -352,13 +351,8 @@ said in Codex — no terminal:
    │   Is this the store? Say yes to open it.
    │ you: "yes"
    │ asks go: open-store <storeId> -b intake
-   │   → "… has no GitHub repo yet" (exit 1,
-   │     nothing made), so Codex asks:
-   │   Keep this store's work in a private GitHub
-   │   repo too? Say yes or no (yes is the usual
-   │   answer).
-   │ you: "yes"
-   │ asks go again: the same + --repo yes
+   │   → no GitHub repo yet: the kit sets up
+   │     its private repo (no question, 3.21)
    ▼
  go ends the lobby Codex and starts Codex in
    stores/<storeId> (repo <org>/store-<storeId>):
@@ -378,9 +372,8 @@ said in Codex — no terminal:
   a reply with a negation or a question in it, such as 唔確定 or 好唔好？, never does; kit 3.15.2); a
   number or a name only shows a card. Codex takes the store's id from Stoily:
   you never type it, and you never name the store (Stoily does). A store with no GitHub repo yet gets
-  the repo question next (above): yes = its private repo `<org>/store-<storeId>`; no = its
-  work stays in this Codespace only (no, n, nope, 不, 不要, 唔要, 否, 唔好, 不用, 唔使; anything else is
-  asked again). Then
+  its private repo `<org>/store-<storeId>` with no question (kit 3.21); say "no GitHub repo" to
+  keep its work in this Codespace only. Then
   Codex opens the store: describe
   the site in your own words and approve the plan. You can also say it all at once ("open
   `<store>`: a shop for handmade clocks") or name a brief ("open `<store>`, build demo-store", a
@@ -406,7 +399,7 @@ said in Codex — no terminal:
   live change runs on your yes in the chat alone, the same with auto off. The one exception to the
   yes: while Codex follows the kit's demo brief on a store it created itself, it makes the demo's NEW
   products (prices included) with no yes and lists them after.
-- Besides those (which store and its card's yes, a new store's name, the repo question, which
+- Besides those (which store and its card's yes, a new store's name, which
   waiting store, the intake's plan, each live change's yes), Codex never asks: where something is
   not said, it picks the default and records each choice under "Choices" in `stoily/progress.md`.
   Read it afterwards.
@@ -649,14 +642,12 @@ on your connection at once — no new sign-in. A store whose owner removes you d
 
 **A store Codex creates** (a demo, or a new shop you build from one ask): say it in the lobby Codex —
 "set up a new store: `<what you want>`" or "create a store called `<name>`". Codex asks the store's
-name when you gave none ("What should the new store be called?"), then the repo question: **"Keep this
-store's work in a private GitHub repo too? Say yes or no (yes is the usual answer)."** (auto mode
-too). The new folder has no store yet (`STORE_ID: pending`, a folder `stores/new-…` that stays in
+name when you gave none ("What should the new store be called?"); its work goes to a private GitHub
+repo with no question (kit 3.21; say "no GitHub repo" in the same sentence to keep it here only). The new folder has no store yet (`STORE_ID: pending`, a folder `stores/new-…` that stays in
 this Codespace); Codex's first live change is ONE `create_store` under that name (it asks first, with
 the name, currency, locale and timezone). Once the store is made the kit links the folder to it by
-itself — writes its id, name and domain into the folder's `AGENTS.md` and, after a yes to the repo
-question, creates `<org>/store-<storeId>` (or Codex gives you the GitHub link to create it, from
-`save --repo-link` as below, EMPTY: untick **Add a README file**); after a no, the folder stays in this Codespace only (below) —
+itself — writes its id, name and domain into the folder's `AGENTS.md` and creates `<org>/store-<storeId>` (or Codex gives you the GitHub link to create it, from
+`save --repo-link` as below, EMPTY: untick **Add a README file**); after a "no GitHub repo", the folder stays in this Codespace only (below) —
 and Codex builds it; the next `go` renames the folder to `stores/<storeId>`. If Codex closes before
 the new store is finished (a restart, a closed terminal), say "done" (or "continue `<name>`") in the
 lobby Codex: it reopens that `stores/new-…` folder and carries on from `stoily/progress.md`. If the
@@ -665,11 +656,11 @@ records for such a folder ever name two different stores, the kit makes no store
 to neither, and Codex says the kit's line and stops there:
 `⚠ stoily-kit: this folder's kit records name two different stores (<id-a> and <id-b>) — it makes no store and links to neither; tell an admin`
 (an admin decides which store the folder belongs to). With `"auto":
-"off"`, in a terminal: `open-store --pending --name "<name>" --repo yes` (or `--repo no`; without
-`--repo` the folder stays in this Codespace only), then `go -b <brief> <the folder it printed>` (`go`
+"off"`, in a terminal: `open-store --pending --name "<name>"` (add `--repo no` to keep it in this
+Codespace only), then `go -b <brief> <the folder it printed>` (`go`
 never picks a pending folder by itself: name it).
 
-**A store kept in this Codespace only** (a no to the repo question): the store itself is in Stoily as
+**A store kept in this Codespace only** ("no GitHub repo", or a repo neither Stoily nor GitHub could make): the store itself is in Stoily as
 usual; its work here (snapshots, records, `stoily/progress.md`) stays in its folder. `save` commits it
 here and says so in one ℹ line,
 `ℹ stores/<folder>: kept in this Codespace only — no GitHub repo yet; say "create the repo" in its Codex`;
@@ -709,15 +700,14 @@ never delete that repo. The kit never creates that repo itself after a no: your 
    catalog) and you accept from the email — or you create the store in Stoily admin. Never ask a
    merchant for their password; there are no member tools.
 2. In the lobby Codex: **"open a store"** — it lists your stores by number (the new one included),
-   you pick one, it shows that store's card, and after your yes it asks the repo question when the
-   store has no GitHub repo yet. Yes creates `<org>/store-<storeId>`, and every Codespace of
-   the org clones it at its next `sync`; no keeps the store's work in this Codespace only (above).
+   you pick one, it shows that store's card, and after your yes a store with no GitHub repo yet gets
+   `<org>/store-<storeId>` (kit 3.21: no question), and every Codespace of the org clones it at its
+   next `sync`; "no GitHub repo" keeps the store's work in this Codespace only (above).
    (Codex reads every page of `list_stores` by itself, 100 stores a page.) A store that already has
    a repo (`store-<storeId>` or `stoily-store-<storeId>` on GitHub, or a `client-<name>` folder
    already cloned here) is opened as it is: no question, never a second repo. With
    `"auto": "off"`, in a terminal: `codex exec "call list_stores"` → the store id and its main domain
-   → `open-store <storeId> <host> --repo yes` (or `--repo no`); without `--repo`, a store with no
-   repo stops at the question and nothing is made.
+   → `open-store <storeId> <host>` (its repo by default; `--repo no` keeps it here only).
 
 **A store folder is bound to ONE store, forever** (its `STORE_ID`). The store's name and main domain
 can change: the kit reads them from Stoily at the start of every session and records the new values
@@ -736,8 +726,7 @@ GitHub as the SAME repo (a renamed one GitHub forwards), it is used as `<org>/st
 
 Where they are two DIFFERENT repos, the kit never picks one by itself and never moves anything
 between them (each line below comes after the program's name, `⚠` or `⚠ stoily-kit:`):
-- **Stoily's answer, on your yes.** A store Codex created, linked to its repo after your yes to the
-  repo question, and `open-store <storeId> <host> --repo yes` typed in a terminal ask Stoily, and
+- **Stoily's answer, on your yes.** A store Codex created and linked to its repo, and `open-store <storeId> <host> --repo yes` typed in a terminal ask Stoily, and
   Stoily's binding for the store names the repo: the folder is linked to that one, and the kit warns
   `<org>/store-<storeId> and <org>/stoily-store-<storeId> are two repos for the same store — this folder uses <org>/<repo>; tell an admin which one to keep`
 - **No such answer** (Stoily names neither, or there was no yes: "open a store" in the lobby asks no
@@ -776,7 +765,7 @@ ALL its stores ticked — or sign in once more and tick "All my stores" (see the
 | You want | Ask Codex | It uses |
 |---|---|---|
 | a new page | "build a FAQ page with 6 questions" | `create_page` + `apply_page_changes` (primitives) |
-| a whole store from one ask | in the lobby: "open a store" (or "set up a new store: `<what you want>`", or "create a store called `<name>`": Codex asks the name if you gave none, then the repo question), then describe the site — the intake writes a plan and builds after you approve; or name a brief ("build demo-store", or your org's own). Auto off: `open-store --pending --name "<name>" --repo yes` (or `--repo no`), then `go -b intake <the folder it printed>` | research (web search) → `create_store` → catalog → `photos` → `logo` → `create_image_upload` + `upload-images` → theme → settings → pages → menus → `publish_all_drafts` (asks first; a pre-launch store only) → `site-check <host>` |
+| a whole store from one ask | in the lobby: "open a store" (or "set up a new store: `<what you want>`", or "create a store called `<name>`": Codex asks the name if you gave none), then describe the site — the intake writes a plan and builds after you approve; or name a brief ("build demo-store", or your org's own). Auto off: `open-store --pending --name "<name>"` (or `--repo no`), then `go -b intake <the folder it printed>` | research (web search) → `create_store` → catalog → `photos` → `logo` → `create_image_upload` + `upload-images` → theme → settings → pages → menus → `publish_all_drafts` (asks first; a pre-launch store only) → `site-check <host>` |
 | a page cloned from a website | run `fetch-site <url>` first, then "rebuild source/… as a draft page" | `list_verified_domains`, then `create_page` + `apply_page_changes` |
 | change what exists | "make the hero headline shorter", "brand colour #0a7", "add FAQ to the footer menu", "footer copyright line" | `read_page` → `apply_page_changes`, `set_theme_tokens`, `set_menu`, `set_chrome`, `set_page_meta`; the browser title is `set_store_config` `design/head/default_title` |
 | undo before publish | "discard the draft of the About page" | `discard_draft` |
