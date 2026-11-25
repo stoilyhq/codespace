@@ -279,9 +279,10 @@ Codespace), and `check` says so.
      to open it."** Only a yes opens it (a number or a name just shows a card). If the store has no
      GitHub repo yet, the kit gives it one with no question (kit 3.21): Stoily makes the store's
      private repo `<org>/store-<storeId>` in your org and gives the store's team access. Where
-     neither Stoily nor GitHub can make it (no Stoily app in the org, or a personal account), the
-     store opens anyway and its work stays in this Codespace for now; say "create the repo" in its
-     Codex later to add it. Say "no GitHub repo" when you open a store to keep its work in this
+     neither Stoily nor GitHub can make it (no Stoily app in the org, or a personal account), or the
+     store's repo is already in another team's org, the store opens anyway and its work stays in this
+     Codespace for now; say "create the repo" in its Codex later to add it. (If two Codespaces of one
+     org both open it before that org has its repo, only the first one's records can go there later.) Say "no GitHub repo" when you open a store to keep its work in this
      Codespace only (the store itself is in Stoily).
    - Codex then opens that store, and its first line is **"You are working on `<name>` — `<domain>`"**.
      Say what you want built, in your own words: Codex writes a plan (the intake), shows it to you,
