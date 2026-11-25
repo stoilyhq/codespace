@@ -28,7 +28,9 @@
 // kit (3.22 and later) reads it from <org>/codespace's .devcontainer/stoily.json on GitHub at run
 // time, so setting it changes no render and needs no Rebuild. "" or absent = no service. A value
 // must be https://<host>[:<port 1-65535>][/<path>] with no user or password (no "@" anywhere), no
-// query, no fragment, no space and no ' — the same rule as the kit's own check.
+// query, no fragment, no space (JavaScript's \s, and U+0085), no ', no control character (U+0000-U+001F,
+// U+007F) and no "%" that does not start a %XX escape (two hex digits) — exactly the set the kit's own
+// check (ValidURL: this rule plus Go's url.Parse, which refuses a bad escape or a control character) accepts.
 // Everything else comes from the template unchanged. A value that is not valid (the same rules as the
 // Feature's install-kit.sh), the placeholder YOUR-ORG, an unknown key or a template without exactly one
 // stoily Feature is refused: exit 1, nothing written. Same inputs → byte-identical output.
@@ -50,14 +52,15 @@ const RULES = {
   auto: [/^$|^on$|^off$/, 'empty, "on" or "off"'],
   record: [/^$|^on$|^off$/, 'empty, "on" or "off"'],
   recordDays: [/^$|^[1-9][0-9]{0,2}$/, 'empty or whole days (1-999)'],
-  repoService: [/^$|^https:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?(\/[^\s'?#@]*)?$/, 'empty or an https://host[/path] address (no user, password, query or fragment)'],
+  repoService: [/^$|^https:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?(\/([^\s'?#@%\u0000-\u001f\u007f\u0085]|%[0-9A-Fa-f]{2})*)?$/, 'empty or an https://host[/path] address (no user, password, query or fragment)'],
 };
 const DEFAULTS = { owner: '', maxHours: '', clientPrefix: 'client-', galleryRepo: '', auto: '', record: '', recordDays: '', repoService: '' };
 // Options written only under a condition (below), never copied as they are.
 const CONDITIONAL = new Set(['auto', 'record', 'recordDays', 'repoService']);
 
 // repoService: beyond its regex, refuse any "@" (userinfo, even an empty one: https://@h, https://:@h)
-// and a port outside 1-65535. Defence in depth: the regex alone already refuses "@" in host and path.
+// and a port outside 1-65535. Defence in depth: the regex alone already refuses "@" in host and path,
+// so no test can catch this check's removal (kept on purpose: the rule must not rest on one regex).
 function repoServiceOk(url) {
   if (url === '') return true;
   if (url.includes('@')) return false;
