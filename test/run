@@ -184,7 +184,7 @@ for c in empty host path p1 p8443 pmax; do
 done
 # The kit's ValidURL is this rule plus Go's url.Parse: a %XX escape, a non-ASCII letter and a C1 character other than
 # U+0085 pass both (U+0085 is Go whitespace, a control character or a bad "%" fails both: the refusals below).
-is "repoService with a %XX escape, a non-ASCII letter, U+0080 in the path → each renders (exit 0)" "$(rsv '"https://repos.example.com/a%2Fb%41"' pct) $(rsv '"https://repos.example.com/caf\u00e9"' nonascii) $(rsv '"https://repos.example.com/a\u0080b"' c1)" "0 0 0"
+is "repoService with a %XX escape, a non-ASCII letter, U+0080 in the path → each renders (exit 0)" "$(rsv '"https://repos.example.com/a%2Fb%41%2f"' pct) $(rsv '"https://repos.example.com/caf\u00e9"' nonascii) $(rsv '"https://repos.example.com/a\u0080b"' c1)" "0 0 0"
 is "…no repoService anywhere in any render" "$(cat "$RD"/rs-*-out.json | grep -c repoService)" 0
 is "repoService with record on + auto off → byte-identical to the same render without it" "$(rsv '"https://repos.example.com/x"' rec ',"auto":"off","record":"on","recordDays":"7"') $(cmp -s "$RD/rec-auto-off-on-days-out.json" "$RD/rs-rec-out.json" && echo same)" "0 same"
 printf '{"features":{"ghcr.io/stoilyhq/codespace/stoily:%s":{"repoService":"https://t.example.com","codexVersion":"1"}}}\n' "$MAJOR" > "$RD/tpl-rs.json"

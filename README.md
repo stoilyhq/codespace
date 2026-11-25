@@ -334,9 +334,10 @@ never creates the `stores` team: an org owner creates it while setting the servi
 
 - **Setting it up (an org owner, once):** the service's operator sets the org up with their own
   setup tool. It checks the App is installed on All repositories with the permissions it needs and
-  makes the `stores` team (an existing one is never changed). On a FRESH org only, it also turns
-  member repo creation and member team creation off and sets the org's base permission to Read; an
-  org that already has store repos keeps all three as they are (the tool prints them), so its owner
+  makes the `stores` team (an existing one is never changed). On a FRESH org only (no repo but
+  `codespace` and no member but the owner running it), it also turns member repo creation and member
+  team creation off and raises the base permission from None to Read (Write or Admin is printed and
+  left alone); any other org keeps all three as they are (the tool prints them), so its owner
   turns member repo and team creation off by hand (org → Settings → Member privileges; the orgs that
   had store repos before kit 3.22 had both turned off by their owners on 2026-11-25). A member who can
   create teams could make a missing `stores` team themselves. Last, it writes `repoService` into
