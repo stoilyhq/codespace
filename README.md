@@ -207,6 +207,15 @@ The honest limits — this is a lock on Codex, not on the person at the keyboard
   programs' own checks (the committed HOST, `save`'s binding rules) still hold. Use auto only on a
   Codespace whose Stoily sign-in reaches stores you would let Codex work on with its programs
   unattended, and never point it at untrusted sites.
+- **An org owner decides where this Codespace's GitHub token goes** (kit 3.22). Anyone who can push
+  to `<org>/codespace` (its default branch) can set `repoService` in `.devcontainer/stoily.json`, and
+  when a store needs its repo the kit sends that address this Codespace's `GITHUB_TOKEN` (only that
+  one: never `GH_TOKEN`, never your `gh` sign-in) — the token that can write every repo of the org
+  you can write. The kit refuses anything but `https://` with no user or password in it, and follows
+  no redirect; it does not judge WHO runs the service. So keep push on `<org>/codespace` to the org's
+  owners (a base permission of none or read; never give the `stores` team push on it), and set `repoService`
+  only to a service you trust. A Codex in its sandbox cannot change it: the kit reads it from GitHub,
+  not from the workbench.
 
 The walls that hold are server-side and per person: **one Codespace per Stoily identity** (and per
 agency), each person's own Stoily role on each store, and GitHub's repo permissions.
@@ -277,9 +286,13 @@ Codespace), and `check` says so.
      It lists your Stoily stores by number; answer with the number, the name or the domain. Codex shows that store's card
      — its name, every domain, your role, the end of its id — and asks **"Is this the store? Say yes
      to open it."** Only a yes opens it (a number or a name just shows a card). If the store has no
-     GitHub repo yet, the kit gives it one with no question (kit 3.21): Stoily makes the store's
-     private repo `<org>/store-<storeId>` in your org and gives the store's team access. Where
-     neither Stoily nor GitHub can make it (no Stoily app in the org, or a personal account), or the
+     GitHub repo yet, the kit gives it one with no question (kit 3.21). In an org with a repo service
+     (`repoService`, kit 3.22: [The org's repo service](#the-orgs-repo-service-kit-322)) the kit asks
+     that service, which makes the store's private repo `<org>/store-<storeId>` and gives the org's
+     `stores` team write on it; you need to be an org owner or in `stores` (otherwise the store stops:
+     ask your org owner to add you to the `stores` team). In an org with no repo service, Stoily makes
+     it for now (until Stoily switches that off; then such a store is kept in this Codespace). Where
+     no one can make it (the service is not installed in the org, a personal account), or the
      store's repo is already in another team's org, the store opens anyway and its work stays in this
      Codespace for now; say "create the repo" in its Codex later to add it. (If two Codespaces of one
      org both open it before that org has its repo, only the first one's records can go there later.) Say "no GitHub repo" when you open a store to keep its work in this
@@ -300,6 +313,47 @@ Delete them if you like; keep `.devcontainer/stoily.json`, `.github/stoily-rende
 
 The Codespace is the lock on Codex, not on people; who may do what is GitHub's (org membership and repo
 permissions) and Stoily's (each person's role on each store).
+
+### The org's repo service (kit 3.22)
+
+A store's private repo `<org>/store-<storeId>` is made by the org's **repo service**: a small web
+service with a GitHub App installed on the org, whose https address is `repoService` in the org's
+`.devcontainer/stoily.json`. When a store has no repo yet, the kit sends the service the org, the
+store id and this Codespace's `GITHUB_TOKEN`; the service checks who you are and that you are an
+active member of the org, then makes the repo (**private**) or adopts an existing one as it is, and gives the org's ONE
+`stores` team write on it. It never deletes anything and never adds anyone to the org or to `stores`.
+
+```
+ Codespace ─ GITHUB_TOKEN, org, storeId ─▶ repoService (https)
+                                             │ GitHub App on <org>
+             ◀─ ready ─ <org>/store-<id> ────┘ private, stores: write
+```
+
+- **Setting it up (an org owner, once):** the service's operator sets the org up with their own
+  setup tool. It checks the App is installed on All repositories with the permissions it needs,
+  makes the `stores` team (an existing one is never changed), turns member repo creation off, sets
+  the org's base permission to Read on a FRESH org only (an org that already has store repos keeps
+  what it has: the tool prints it), and writes `repoService` into `stoily.json` — only once your copy's `.github/stoily-render.js` accepts
+  the key (an older copy refuses it and the updater's run goes red: copy the current renderer first).
+  `repoService` is not a Feature option: the updater checks it but never writes it into
+  `devcontainer.json`, and the kit reads it from GitHub when a store needs its repo, so setting it
+  needs no Rebuild.
+- **Adding a member (an org owner):** invite them to the GitHub org (org → People → Invite member),
+  add them to the `stores` team once they accept (they can then get new store repos made and push
+  them), and invite their Stoily account to each store in Stoily admin.
+- **What you see when a store needs its repo:**
+  - made, or an existing one adopted → cloned like any store repo;
+  - you are not in `stores` (and not an owner), and the repo does not exist or gives you no write →
+    stop: ask your org owner to add you to the `stores` team;
+  - you are not an active member of the org (an invitation not yet accepted counts as not) → stop;
+  - the service is not installed on the org → the store is kept in this Codespace only (no repo is
+    made in any other way);
+  - GitHub refused this Codespace's token (expired) → stop;
+  - the service is busy or down → the kit tries once more, then stops: try again later;
+  - the kit cannot read `repoService` from GitHub → stop, nothing is sent anywhere;
+  - no `repoService` set → Stoily makes the repo, as before, until Stoily switches that off; after
+    that such a store is kept in this Codespace only.
+  A "no GitHub repo" (or a no you gave before) still wins: nothing is sent to the service.
 
 ### Feature options
 
@@ -329,6 +383,7 @@ options in `devcontainer.json` (never edit that file: the next render replaces i
 | `auto` | `""` | **Auto mode is on by default.** `""` (the default) or `"on"` = auto mode: you type one sentence and Codex does the rest — `go` runs the kit's programs it asks for, Codex asks no clarifying questions besides which store (and its card's yes), a new store's name, the repo question (only to bring back a store kept out of GitHub, kit 3.21), which waiting store and the intake's plan (otherwise it picks a default and writes each choice under "Choices" in `stoily/progress.md`), and `go` keeps the Codespace awake while Codex works. Every LIVE change still asks for your yes in the chat, auto mode too (the demo brief's NEW products excepted), and so does an undo ("undo that"); a conflict is settled by an admin on GitHub, never by Codex. `"off"` = Codex also asks before every kit program, and a store is opened in the terminal; the Stoily tools ask the same in both modes (your yes in the chat; Codex's own click only before `create_store` and `publish_all_drafts`, kit 3.16.1) (needs kit 3.9 or later AND this repo's current `.github/stoily-render.js` in your copy: an older one refuses `"off"`). Nothing else is accepted. Read [Auto mode](#auto-mode-on-by-default) and the auto paragraph in "What the lock does NOT do". |
 | `record` | `""` | **Recording staff chats is off by default.** `""` or `"off"` = no chat is recorded anywhere (nothing is written into the Feature's options). `"on"` = every Codex chat in a STAFF Codespace (any account but `owner`) is uploaded to the org's private repo `<org>/chats` for the org's admins to review; needs kit 3.13 or later, `owner` set, AND this repo's current `.github/stoily-render.js` in your copy (an older one refuses the key and the updater's run goes red). Turn it on only by the steps in [Recording staff chats](#recording-staff-chats-kit-313): staff are told in writing FIRST. Nothing else is accepted. |
 | `recordDays` | `""` | How many days a recorded chat is kept (whole days, `1`–`999`). Empty = 90. Used only with `"record": "on"` (otherwise it is not written). See [Retention](#recording-staff-chats-kit-313) for when old chats actually go. |
+| `repoService` | `""` | The https address of the org's repo service ([The org's repo service](#the-orgs-repo-service-kit-322)), which makes a new store's private repo. **Not a Feature option:** the updater checks it and never writes it into `devcontainer.json`; the kit (3.22 or later) reads it from `<org>/codespace`'s `stoily.json` on GitHub when a store needs its repo, so a change needs no Rebuild. Empty = no service (Stoily makes the repo until it switches that off; then the store is kept in this Codespace). Only `https://<host>[:<port>][/<path>]`: no user or password, no query, no fragment. Needs this repo's current `.github/stoily-render.js` in your copy (an older one refuses the key and the updater's run goes red). Whoever can push to `<org>/codespace` controls where the Codespace's GitHub token is sent: read "What the lock does NOT do". |
 | `codexVersion` | the kit's tested Codex | The `@openai/codex` npm version installed into the image (the Feature's option; not in `stoily.json`). The default is the version this kit release was tested with: a kit bot moves it to a newer stable Codex once a week (when one has been out 72 hours and passed the kit's tests) and releases a kit patch, so a Codespace gets it on create or Full Rebuild, and a kit 3.18+ Codespace at its next start (Updates and versions). `latest` takes the newest. A version below `0.167.0` fails the build: an older Codex does not enforce the locked settings. |
 
 An invalid value fails the updater's run (nothing is committed; the run's log names the value); an
@@ -661,7 +716,7 @@ to neither, and Codex says the kit's line and stops there:
 Codespace only), then `go -b <brief> <the folder it printed>` (`go`
 never picks a pending folder by itself: name it).
 
-**A store kept in this Codespace only** ("no GitHub repo", or a repo neither Stoily nor GitHub could make): the store itself is in Stoily as
+**A store kept in this Codespace only** ("no GitHub repo", or a repo no one could make: the org's repo service is not installed on the org, or, in an org with no repo service, neither Stoily nor GitHub could make it): the store itself is in Stoily as
 usual; its work here (snapshots, records, `stoily/progress.md`) stays in its folder. `save` commits it
 here and says so in one ℹ line,
 `ℹ stores/<folder>: kept in this Codespace only — no GitHub repo yet; say "create the repo" in its Codex`;
@@ -702,8 +757,9 @@ never delete that repo. The kit never creates that repo itself after a no: your 
    merchant for their password; there are no member tools.
 2. In the lobby Codex: **"open a store"** — it lists your stores by number (the new one included),
    you pick one, it shows that store's card, and after your yes a store with no GitHub repo yet gets
-   `<org>/store-<storeId>` (kit 3.21: no question), and every Codespace of the org clones it at its
-   next `sync`; "no GitHub repo" keeps the store's work in this Codespace only (above).
+   `<org>/store-<storeId>` (kit 3.21: no question; made by the org's repo service where it has one,
+   which needs you to be an owner or in `stores` — [The org's repo service](#the-orgs-repo-service-kit-322)),
+   and every Codespace of the org clones it at its next `sync`; "no GitHub repo" keeps the store's work in this Codespace only (above).
    (Codex reads every page of `list_stores` by itself, 100 stores a page.) A store that already has
    a repo (`store-<storeId>` or `stoily-store-<storeId>` on GitHub, or a `client-<name>` folder
    already cloned here) is opened as it is: no question, never a second repo. With
@@ -727,7 +783,8 @@ GitHub as the SAME repo (a renamed one GitHub forwards), it is used as `<org>/st
 
 Where they are two DIFFERENT repos, the kit never picks one by itself and never moves anything
 between them (each line below comes after the program's name, `⚠` or `⚠ stoily-kit:`):
-- **Stoily's answer, on your yes.** A store Codex created and linked to its repo, and `open-store <storeId> <host> --repo yes` typed in a terminal ask Stoily, and
+- **Stoily's answer, on your yes** (an org with no repo service; in an org with one, Stoily is never
+  asked). A store Codex created and linked to its repo, and `open-store <storeId> <host> --repo yes` typed in a terminal ask Stoily, and
   Stoily's binding for the store names the repo: the folder is linked to that one, and the kit warns
   `<org>/store-<storeId> and <org>/stoily-store-<storeId> are two repos for the same store — this folder uses <org>/<repo>; tell an admin which one to keep`
 - **No such answer** (Stoily names neither, or there was no yes: "open a store" in the lobby asks no
@@ -914,11 +971,14 @@ The yes words include Hong Kong ones (係, 好, 可以, 確定, 好呀 …); a r
   policy needs a paid plan.
 - **Every store of the org is in every Codespace of the org** (each `<org>/store-*` and older
   `<org>/stoily-store-*` or `<org>/client-*` repo it can see; a store kept in one Codespace only is in that
-  one alone). To keep merchants apart, use separate orgs; a member's own GitHub
-  permissions decide which store repos their Codespace can see and push. Staff are plain org
-  members: a store repo another member created stays invisible to you until an org owner grants you
-  access to it, and until then the kit gives you the GitHub link (GitHub refuses that name) rather
-  than making a second repo: ask an owner for access instead.
+  one alone). To keep merchants apart, use separate orgs: inside one org there is no per-store
+  separation. A member's own GitHub permissions decide which store repos their Codespace can see and
+  push: with a repo service, the org's `stores` team has write on every store repo it made or
+  adopted, so a member of `stores` reaches all of them; a plain member (not in `stores`) gets none
+  made and reaches only a repo they were given access to — ask your org owner to add you to the
+  `stores` team. With no repo service, a store repo another member created stays invisible to you
+  until an org owner grants you access to it, and until then the kit gives you the GitHub link
+  (GitHub refuses that name) rather than making a second repo: ask an owner for access instead.
 - **Coming from kit 1 (`groups.txt`, `work <code>`, `go -g`)**: groups are gone. To move an org to
   kit 2, copy three files from stoilyhq/codespace into your `<org>/codespace` — `.devcontainer/stoily.json`,
   `.github/stoily-render.js` and `.github/workflows/stoily-update.yml` — set `"org"` (and your old
@@ -933,9 +993,14 @@ The yes words include Hong Kong ones (係, 好, 可以, 確定, 好呀 …); a r
 
 - Each Codespace signs into ChatGPT and Stoily itself (`go`): a Stoily sign-in refreshes with
   ROTATION, so one copy in two live Codespaces logs one of them out at the first refresh.
-- Write access is GitHub's: org members read the workbench and write only their own store repos
-  (org → People → the member → repository access). The Codespace grant in `.devcontainer/` never
-  exceeds the member's own permission.
+- Write access is GitHub's: org members read the workbench and write the store repos GitHub lets
+  them write (org → People → the member → repository access). The Codespace grant in `.devcontainer/`
+  never exceeds the member's own permission.
+- With a repo service, ONE `stores` team per org has write on every store repo the service made or
+  adopted: there are no per-store teams, so everyone in `stores` can push every store of the org
+  (keep merchants apart with separate orgs). The org owner decides who is in `stores`; the service
+  never adds anyone. Offboarding: remove the person from the org (or from `stores`), and from each
+  store in Stoily admin (a repo an owner granted them one by one keeps that grant until it is removed).
 - `go` opens Codex without a brief; say "build `<brief>`" in a store's Codex to start one (in a
   terminal: `go -b prompts/<brief>.md <folder>`).
 - Several people can work on the same store: every change is committed as the person who made it,

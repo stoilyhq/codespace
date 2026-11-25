@@ -175,6 +175,28 @@ is "…\"on\" without recordDays keeps the template's recordDays out (the kit's 
 has "a bad record value says what is allowed" "$(printf '{"org":"%s","record":"yes"}\n' "$ORG" > "$RD/bad.json"; render "$tpl" "$RD/bad.json" "$RD/bad-out.json")" '"record" = "yes" is not empty, "on" or "off"'
 has "a bad recordDays value says what is allowed" "$(printf '{"org":"%s","record":"on","recordDays":"1000"}\n' "$ORG" > "$RD/bad.json"; render "$tpl" "$RD/bad.json" "$RD/bad-out.json")" '"recordDays" = "1000" is not empty or whole days (1-999)'
 is "recordDays 1 and 999 (the bounds) → accepted" "$(rec ',"record":"on","recordDays":"1"' d1) $(rec ',"record":"on","recordDays":"999"' d999) $(rj "$RD/rec-d1-out.json" "console.log(j.features['$FK'].recordDays)") $(rj "$RD/rec-d999-out.json" "console.log(j.features['$FK'].recordDays)")" "0 0 1 999"
+# repoService (kit 3.22): validated, NEVER written into devcontainer.json (the kit reads it from
+# <org>/codespace's stoily.json on GitHub at run time): a render with it is byte-identical to one without.
+rsv() { printf '{"org":"%s","owner":"boss","maxHours":"6","clientPrefix":"client-","galleryRepo":"designs"%s,"repoService":%s}\n' "$ORG" "${3:-}" "$1" > "$RD/rs-$2.json"; render "$tpl" "$RD/rs-$2.json" "$RD/rs-$2-out.json" >/dev/null; echo $?; }
+is "repoService \"\", an https host, a path, a port (1, 8443, 65535) → each renders (exit 0)" "$(rsv '""' empty) $(rsv '"https://repos.example.com"' host) $(rsv '"https://repos.example.com/repo-service/v1/store-repos"' path) $(rsv '"https://repos.example.com:1/x"' p1) $(rsv '"https://repos.example.com:8443/x"' p8443) $(rsv '"https://repos.example.com:65535"' pmax)" "0 0 0 0 0 0"
+for c in empty host path p1 p8443 pmax; do
+  is "…repoService $c → byte-identical to the render without it" "$(cmp -s "$RD/auto-none-out.json" "$RD/rs-$c-out.json" && echo same)" same
+done
+is "…no repoService anywhere in any render" "$(cat "$RD"/rs-*-out.json | grep -c repoService)" 0
+is "repoService with record on + auto off → byte-identical to the same render without it" "$(rsv '"https://repos.example.com/x"' rec ',"auto":"off","record":"on","recordDays":"7"') $(cmp -s "$RD/rec-auto-off-on-days-out.json" "$RD/rs-rec-out.json" && echo same)" "0 same"
+printf '{"features":{"ghcr.io/stoilyhq/codespace/stoily:%s":{"repoService":"https://t.example.com","codexVersion":"1"}}}\n' "$MAJOR" > "$RD/tpl-rs.json"
+is "a template that carries repoService → dropped (the template's other options kept)" "$(render "$RD/tpl-rs.json" "$RD/rs-host.json" "$RD/tpl-rs-out.json" >/dev/null; rj "$RD/tpl-rs-out.json" "const f=j.features['$FK'];console.log(('repoService' in f)+' '+f.codexVersion)")" "false 1"
+cp "$RD/out.json" "$RD/keep.json"
+AT=@ # https://u:p<AT>… built at run time: test/public-tree refuses that shape as a literal
+for bad in '"http://repos.example.com"' '"https://u@repos.example.com"' "\"https://u:p${AT}repos.example.com\"" '"https://:@repos.example.com"' '"https://@repos.example.com"' '"https://repos.example.com/a@b"' '"https://repos.example.com?x=1"' '"https://repos.example.com/x?y=1"' '"https://repos.example.com/x#f"' '"https://repos.example.com/a b"' "\"https://repos.example.com/a'b\"" '"https://repos.example.com:0/x"' '"https://repos.example.com:65536"' '"https://repos.example.com:99999"' '"https://"' '"ftp://repos.example.com"' '"HTTPS://repos.example.com"' '" https://repos.example.com"' '"https://repos.example.com "' '7' 'true' 'null' '["https://repos.example.com"]' '{}'; do
+  printf '{"org":"%s","repoService":%s}\n' "$ORG" "$bad" > "$RD/bad.json"
+  out="$(render "$tpl" "$RD/bad.json" "$RD/out.json")"; rc=$?
+  if [ "$rc" = 1 ] && cmp -s "$RD/out.json" "$RD/keep.json"; then ok "repoService $bad → refused, nothing written"
+  else no "repoService $bad → rc $rc (want 1), output $(cmp -s "$RD/out.json" "$RD/keep.json" && echo kept || echo CHANGED): $out"; fi
+  cp "$RD/keep.json" "$RD/out.json"
+done
+has "a bad repoService says what is allowed" "$(printf '{"org":"%s","repoService":"http://x"}\n' "$ORG" > "$RD/bad.json"; render "$tpl" "$RD/bad.json" "$RD/bad-out.json")" '"repoService" = "http://x" is not empty or an https://host[/path] address (no user, password, query or fragment)'
+has "a non-string repoService says it must be a string" "$(printf '{"org":"%s","repoService":7}\n' "$ORG" > "$RD/bad.json"; render "$tpl" "$RD/bad.json" "$RD/bad-out.json")" '"repoService" must be a string'
 printf '{"name":"x","features":{"ghcr.io/devcontainers/features/node:1":{}}}\n' > "$RD/nofeat.json"
 for k in 'ghcr.io/stoilyhq/codespace/stoily@sha256:0123' 'ghcr.io/stoilyhq/codespace/stoily'; do
   printf '{"features":{"ghcr.io/stoilyhq/codespace/stoily:2":{},"%s":{}}}\n' "$k" > "$RD/two.json"; printf '{"features":{"%s":{}}}\n' "$k" > "$RD/one.json"

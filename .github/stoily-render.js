@@ -23,6 +23,12 @@
 //     records nobody), and recordDays ONLY with record "on" and a value set (otherwise no key: the
 //     kit keeps 90 days) (any other option of the template is kept as it is; a record or recordDays
 //     the template carries is replaced by what stoily.json says, so it is dropped when that is off).
+// repoService (the URL of the org's repo service, which makes a store's private repo) is validated
+// here and NEVER written into devcontainer.json (a template's own repoService is dropped too): the
+// kit (3.22 and later) reads it from <org>/codespace's .devcontainer/stoily.json on GitHub at run
+// time, so setting it changes no render and needs no Rebuild. "" or absent = no service. A value
+// must be https://<host>[:<port 1-65535>][/<path>] with no user or password (no "@" anywhere), no
+// query, no fragment, no space and no ' — the same rule as the kit's own check.
 // Everything else comes from the template unchanged. A value that is not valid (the same rules as the
 // Feature's install-kit.sh), the placeholder YOUR-ORG, an unknown key or a template without exactly one
 // stoily Feature is refused: exit 1, nothing written. Same inputs → byte-identical output.
@@ -44,10 +50,21 @@ const RULES = {
   auto: [/^$|^on$|^off$/, 'empty, "on" or "off"'],
   record: [/^$|^on$|^off$/, 'empty, "on" or "off"'],
   recordDays: [/^$|^[1-9][0-9]{0,2}$/, 'empty or whole days (1-999)'],
+  repoService: [/^$|^https:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?(\/[^\s'?#@]*)?$/, 'empty or an https://host[/path] address (no user, password, query or fragment)'],
 };
-const DEFAULTS = { owner: '', maxHours: '', clientPrefix: 'client-', galleryRepo: '', auto: '', record: '', recordDays: '' };
+const DEFAULTS = { owner: '', maxHours: '', clientPrefix: 'client-', galleryRepo: '', auto: '', record: '', recordDays: '', repoService: '' };
 // Options written only under a condition (below), never copied as they are.
-const CONDITIONAL = new Set(['auto', 'record', 'recordDays']);
+const CONDITIONAL = new Set(['auto', 'record', 'recordDays', 'repoService']);
+
+// repoService: beyond its regex, refuse any "@" (userinfo, even an empty one: https://@h, https://:@h)
+// and a port outside 1-65535. Defence in depth: the regex alone already refuses "@" in host and path.
+function repoServiceOk(url) {
+  if (url === '') return true;
+  if (url.includes('@')) return false;
+  const m = /^https:\/\/[A-Za-z0-9.-]+:([0-9]+)/.exec(url);
+  if (m && (Number(m[1]) < 1 || Number(m[1]) > 65535)) return false;
+  return true;
+}
 
 function die(msg) { process.stderr.write(`stoily-render: ${msg}\n`); process.exit(1); }
 
@@ -116,7 +133,7 @@ function main(argv) {
   if (!('org' in cfg)) die('.devcontainer/stoily.json: "org" is missing — set it to your GitHub org');
   for (const [k, [re, want]] of Object.entries(RULES)) {
     if (typeof v[k] !== 'string') die(`.devcontainer/stoily.json: "${k}" must be a string (${want})`);
-    if (!re.test(v[k]) || (k === 'galleryRepo' && v[k].includes('..'))) die(`.devcontainer/stoily.json: "${k}" = ${JSON.stringify(v[k])} is not ${want}`);
+    if (!re.test(v[k]) || (k === 'galleryRepo' && v[k].includes('..')) || (k === 'repoService' && !repoServiceOk(v[k]))) die(`.devcontainer/stoily.json: "${k}" = ${JSON.stringify(v[k])} is not ${want}`);
   }
   if (v.org.toUpperCase() === 'YOUR-ORG') die('.devcontainer/stoily.json: "org" is still the placeholder YOUR-ORG — set it to your GitHub org');
 
@@ -141,6 +158,8 @@ function main(argv) {
     opts.record = 'on';
     if (v.recordDays !== '') opts.recordDays = v.recordDays;
   }
+  // repoService: never written (the kit reads it from GitHub at run time); a template's own is dropped.
+  delete opts.repoService;
   tpl.features[fk] = opts;
 
   // ── the ONE Codespaces grant: <org>/* (built fresh: no other grant survives) ──
